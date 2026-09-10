@@ -674,15 +674,15 @@
   //   3. 把下面兩個常數換成你自己的值。
   // 注意：這種方式上傳的照片網址是「知道連結就能看」，並非私密相簿，
   // 若在意公開性，可在 Cloudinary 設定自動刪除或改用有權限控管的圖床。
-  const CLOUDINARY_CLOUD_NAME = 'YOUR_CLOUD_NAME';
-  const CLOUDINARY_UPLOAD_PRESET = 'YOUR_UPLOAD_PRESET';
+  const CLOUDINARY_CLOUD_NAME = 'nmldtpzv';
+  const CLOUDINARY_UPLOAD_PRESET = 'lzy5vnvj';
 
   qrBtn.addEventListener('click', async ()=>{
     qrPanel.classList.remove('hidden');
     qrImg.classList.add('hidden');
     qrStatus.textContent = '上傳中，請稍候…';
     try{
-      if(CLOUDINARY_CLOUD_NAME === 'YOUR_CLOUD_NAME' || CLOUDINARY_UPLOAD_PRESET === 'YOUR_UPLOAD_PRESET'){
+      if(CLOUDINARY_CLOUD_NAME === 'nmldtpzv' || CLOUDINARY_UPLOAD_PRESET === 'lzy5vnvj'){
         throw new Error('尚未設定圖床，請先完成程式碼裡的 Cloudinary 設定');
       }
       const blob = await new Promise(resolve => resultCanvas.toBlob(resolve, 'image/png'));
