@@ -682,7 +682,7 @@
     qrImg.classList.add('hidden');
     qrStatus.textContent = '上傳中，請稍候…';
     try{
-      if(CLOUDINARY_CLOUD_NAME === 'nmldtpzv' || CLOUDINARY_UPLOAD_PRESET === 'lzy5vnvj'){
+      if(CLOUDINARY_CLOUD_NAME === 'YOUR_CLOUD_NAME' || CLOUDINARY_UPLOAD_PRESET === 'YOUR_UPLOAD_PRESET'){
         throw new Error('尚未設定圖床，請先完成程式碼裡的 Cloudinary 設定');
       }
       const blob = await new Promise(resolve => resultCanvas.toBlob(resolve, 'image/png'));
