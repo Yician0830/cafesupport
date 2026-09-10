@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拍貼機｜生咖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --coffee-dark:#3A2A1E;
+    --ink:#2B1F16;
+    --cream:#F0E6D2;
+    --cream-soft:#F7F1E4;
+    --mustard:#C08A2E;
+    --sage:#6B7A52;
+    --sage-soft:#DCE3D0;
+    --line:rgba(58,42,30,0.16);
+    --radius:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(192,138,46,0.10), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(107,122,82,0.10), transparent 40%);
+    color:var(--ink);
+    font-family:'Noto Sans TC', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:28px 16px 60px;
+  }
+  .app{
+    width:100%;
+    max-width:460px;
+    transition:max-width .2s ease;
+  }
+  .app.stage-capture{
+    max-width:620px;
+  }
+  @media (min-width:900px){
+    .app.stage-capture{ max-width:900px; }
+  }
+  @media (min-width:1300px){
+    .app.stage-capture{ max-width:1080px; }
+  }
+  header.top{
+    text-align:center;
+    margin-bottom:22px;
+  }
+  header.top .mark{
+    font-family:'Noto Serif TC', serif;
+    font-weight:900;
+    font-size:34px;
+    letter-spacing:0.04em;
+    color:var(--coffee-dark);
+  }
+  header.top .sub{
+    margin-top:4px;
+    font-size:13.5px;
+    color:var(--coffee-dark);
+    opacity:0.62;
+  }
+  .card{
+    background:var(--cream-soft);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+    box-shadow:0 1px 0 rgba(58,42,30,0.05);
+  }
+  .step-label{
+    font-size:13px;
+    color:var(--mustard);
+    font-weight:700;
+    margin-bottom:6px;
+  }
+  h1.title{
+    font-family:'Noto Serif TC', serif;
+    font-size:22px;
+    font-weight:700;
+    margin:0 0 6px;
+    color:var(--coffee-dark);
+    line-height:1.4;
+  }
+  p.desc{
+    margin:0 0 18px;
+    font-size:14px;
+    line-height:1.7;
+    color:var(--ink);
+    opacity:0.75;
+  }
+  label.field-label{
+    display:block;
+    font-size:13px;
+    font-weight:500;
+    margin-bottom:6px;
+    color:var(--coffee-dark);
+  }
+  input.name-input{
+    width:100%;
+    padding:11px 12px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:#fff;
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:14px;
+    color:var(--ink);
+    margin-bottom:20px;
+  }
+  input.name-input:focus{outline:2px solid var(--mustard); outline-offset:1px;}
+
+  .frames{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-bottom:22px;
+  }
+  .frame-choice{
+    cursor:pointer;
+    border:2px solid transparent;
+    border-radius:12px;
+    padding:8px 6px 10px;
+    text-align:center;
+    background:#fff;
+    transition:border-color .15s ease, transform .15s ease;
+  }
+  .frame-choice:hover{transform:translateY(-1px);}
+  .frame-choice.active{border-color:var(--mustard); background:var(--cream);}
+  .frame-choice .swatch{
+    width:100%;
+    height:64px;
+    border-radius:8px;
+    margin-bottom:8px;
+  }
+  .swatch.theme-drip{background:linear-gradient(160deg,#F0E6D2,#fff); border:2px solid var(--coffee-dark);}
+  .swatch.theme-forest{background:linear-gradient(160deg,var(--sage-soft),#fff); border:2px dashed var(--sage);}
+  .swatch.theme-retro{background:#241A12; border:2px solid #C08A2E;}
+  .frame-choice .fname{font-size:12px; font-weight:500; color:var(--coffee-dark);}
+
+  .layout-toggle{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .layout-toggle.cols-3{
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .layout-toggle.cols-3 .lname{font-size:11.5px; line-height:1.3;}
+  .layout-btn{
+    cursor:pointer;
+    border:2px solid transparent;
+    border-radius:12px;
+    padding:12px 6px;
+    text-align:center;
+    background:#fff;
+    font-family:'Noto Sans TC', sans-serif;
+    transition:border-color .15s ease;
+  }
+  .layout-btn.active{border-color:var(--mustard); background:var(--cream);}
+  .layout-icon{
+    width:44px; height:44px;
+    margin:0 auto 8px;
+    display:grid;
+    gap:3px;
+  }
+  .layout-icon.grid4{grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;}
+  .layout-icon.grid4 span{background:var(--coffee-dark); border-radius:3px; opacity:0.75;}
+  .layout-icon.single{display:block;}
+  .layout-icon.single span{display:block; width:100%; height:100%; background:var(--coffee-dark); border-radius:5px; opacity:0.75;}
+  .lname{font-size:12.5px; font-weight:500; color:var(--coffee-dark);}
+
+  button.primary{
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    background:var(--coffee-dark);
+    color:var(--cream-soft);
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    letter-spacing:0.02em;
+  }
+  button.primary:active{transform:translateY(1px);}
+  button.primary:disabled{opacity:0.45; cursor:not-allowed;}
+  button.ghost{
+    width:100%;
+    padding:13px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:transparent;
+    color:var(--coffee-dark);
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:14px;
+    font-weight:500;
+    cursor:pointer;
+    margin-top:10px;
+  }
+
+  /* capture screen */
+  .viewfinder-wrap{
+    position:relative;
+    border-radius:14px;
+    overflow:hidden;
+    background:#000;
+    aspect-ratio:4/3;
+    margin-bottom:16px;
+  }
+  video{width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block;}
+  .countdown-overlay{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+  }
+  .countdown-num{
+    font-family:'Noto Serif TC', serif;
+    font-weight:900;
+    font-size:clamp(88px, 14vw, 200px);
+    color:#fff;
+    text-shadow:0 2px 18px rgba(0,0,0,0.5);
+    animation:pop .5s ease;
+  }
+  @keyframes pop{from{transform:scale(0.6); opacity:0;} to{transform:scale(1); opacity:1;}}
+  .shot-indicator{
+    position:absolute; top:12px; left:12px;
+    display:flex; gap:6px;
+  }
+  .shot-dot{width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,0.35);}
+  .shot-dot.done{background:var(--mustard);}
+  .snap-flash{
+    position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none;
+  }
+  .snap-flash.flash{animation:flash .35s ease;}
+  @keyframes flash{0%{opacity:0.9;} 100%{opacity:0;}}
+  .cam-status{
+    font-size:13px; text-align:center; color:var(--coffee-dark); opacity:0.7; margin-bottom:14px; min-height:18px;
+  }
+  .thumbs-row{
+    display:flex; gap:8px; margin-bottom:16px;
+  }
+  .thumbs-row .thumb{
+    flex:1; aspect-ratio:4/3; border-radius:8px; background:#eee0c8; border:1px solid var(--line);
+    background-size:cover; background-position:center;
+  }
+
+  /* result */
+  .result-canvas-wrap{
+    display:flex; justify-content:center; margin-bottom:18px;
+  }
+  #resultCanvas{
+    width:100%;
+    max-width:340px;
+    border-radius:10px;
+    box-shadow:0 6px 24px rgba(58,42,30,0.18);
+  }
+  .hidden{display:none !important;}
+
+  .qr-panel{
+    position:fixed; inset:0;
+    background:rgba(43,31,22,0.55);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+    z-index:50;
+  }
+  .qr-panel-inner{
+    background:var(--cream-soft);
+    border-radius:var(--radius);
+    padding:26px 24px;
+    max-width:320px;
+    width:100%;
+    text-align:center;
+    box-shadow:0 12px 40px rgba(0,0,0,0.25);
+  }
+  .qr-title{
+    font-family:'Noto Serif TC', serif;
+    font-weight:700;
+    font-size:18px;
+    color:var(--coffee-dark);
+    margin-bottom:14px;
+  }
+  .qr-img{
+    width:220px; height:220px;
+    margin:0 auto 14px;
+    display:block;
+    border-radius:10px;
+    background:#fff;
+    padding:8px;
+    border:1px solid var(--line);
+  }
+  .qr-status{
+    font-size:13px;
+    color:var(--ink);
+    opacity:0.75;
+    line-height:1.6;
+    margin-bottom:16px;
+    min-height:20px;
+  }
+  footer.credit{
+    text-align:center; margin-top:22px; font-size:11.5px; color:var(--coffee-dark); opacity:0.4;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="mark">生咖 拍貼機</div>
+    <div class="sub">選一款框，拍三張，帶走今天的自己</div>
+  </header>
+
+  <!-- SCREEN 1: SELECT -->
+  <div class="card" id="screenSelect">
+    <div class="step-label">STEP 1</div>
+    <h1 class="title">選一款相框</h1>
+    <p class="desc">拍完會自動套上，也可以印上想留下的名字或一句話。</p>
+
+    <label class="field-label" for="shopNameInput">相框上的落款文字</label>
+    <input class="name-input" id="shopNameInput" maxlength="14" value="生咖 Café" placeholder="例如：生咖 Café">
+
+    <div class="frames" id="frameGrid">
+      <div class="frame-choice active" data-theme="drip">
+        <div class="swatch theme-drip"></div>
+        <div class="fname">手沖角落</div>
+      </div>
+      <div class="frame-choice" data-theme="forest">
+        <div class="swatch theme-forest"></div>
+        <div class="fname">森林早晨</div>
+      </div>
+      <div class="frame-choice" data-theme="retro">
+        <div class="swatch theme-retro"></div>
+        <div class="fname">復古沖印</div>
+      </div>
+    </div>
+
+    <label class="field-label">照片來源</label>
+    <div class="layout-toggle" id="sourceToggle">
+      <button class="layout-btn active" data-source="camera" type="button">
+        <div class="layout-icon single"><span></span></div>
+        <div class="lname">現場拍攝</div>
+      </button>
+      <button class="layout-btn" data-source="upload" type="button">
+        <div class="layout-icon single"><span></span></div>
+        <div class="lname">自行上傳</div>
+      </button>
+    </div>
+
+    <label class="field-label">拍攝方式</label>
+    <div class="layout-toggle cols-3" id="layoutToggle">
+      <button class="layout-btn active" data-layout="strip4x6" type="button">
+        <div class="layout-icon grid4"><span></span><span></span><span></span><span></span></div>
+        <div class="lname">4×6 直式四格</div>
+      </button>
+      <button class="layout-btn" data-layout="a4poster" type="button">
+        <div class="layout-icon grid4"><span></span><span></span><span></span><span></span></div>
+        <div class="lname">2×2</div>
+      </button>
+      <button class="layout-btn" data-layout="single" type="button">
+        <div class="layout-icon single"><span></span></div>
+        <div class="lname">單格拍攝</div>
+      </button>
+    </div>
+
+    <button class="primary" id="startBtn">開始拍照</button>
+  </div>
+
+  <!-- SCREEN 2: CAPTURE -->
+  <div class="card hidden" id="screenCapture">
+    <div class="step-label">STEP 2</div>
+    <h1 class="title">準備好了嗎？</h1>
+    <div class="viewfinder-wrap" id="viewfinderWrap">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="snap-flash" id="flash"></div>
+      <div class="shot-indicator" id="shotIndicator"></div>
+      <div class="countdown-overlay" id="countdownOverlay"></div>
+    </div>
+    <div class="cam-status" id="camStatus">按下方按鈕開啟鏡頭</div>
+    <div class="thumbs-row" id="thumbsRow"></div>
+    <button class="primary" id="captureBtn">開啟鏡頭</button>
+    <button class="ghost" id="backToSelectBtn">返回選框</button>
+  </div>
+
+  <!-- SCREEN 3: RESULT -->
+  <div class="card hidden" id="screenResult">
+    <div class="step-label">STEP 3</div>
+    <h1 class="title">完成了！</h1>
+    <p class="desc">存到手機，或掃描分享給朋友。</p>
+    <div class="result-canvas-wrap">
+      <canvas id="resultCanvas" width="1200" height="1800"></canvas>
+    </div>
+    <button class="primary" id="downloadBtn">下載照片</button>
+    <button class="ghost" id="qrBtn">產生手機掃描 QR Code</button>
+    <button class="ghost" id="retakeBtn">重新拍一組</button>
+
+    <div class="qr-panel hidden" id="qrPanel">
+      <div class="qr-panel-inner">
+        <div class="qr-title">用手機掃描存照片</div>
+        <img class="qr-img hidden" id="qrImg" alt="下載連結 QR Code">
+        <div class="qr-status" id="qrStatus"></div>
+        <button class="ghost" id="qrCloseBtn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="credit">拍貼機 Demo · 生咖</footer>
+</div>
+
+<script>
+(function(){
+  const screenSelect = document.getElementById('screenSelect');
+  const screenCapture = document.getElementById('screenCapture');
+  const screenResult = document.getElementById('screenResult');
+  const appEl = document.querySelector('.app');
+  const startBtn = document.getElementById('startBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const backToSelectBtn = document.getElementById('backToSelectBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const qrBtn = document.getElementById('qrBtn');
+  const qrPanel = document.getElementById('qrPanel');
+  const qrImg = document.getElementById('qrImg');
+  const qrStatus = document.getElementById('qrStatus');
+  const qrCloseBtn = document.getElementById('qrCloseBtn');
+  const video = document.getElementById('video');
+  const flash = document.getElementById('flash');
+  const camStatus = document.getElementById('camStatus');
+  const countdownOverlay = document.getElementById('countdownOverlay');
+  const shotIndicator = document.getElementById('shotIndicator');
+  const thumbsRow = document.getElementById('thumbsRow');
+  const resultCanvas = document.getElementById('resultCanvas');
+  const shopNameInput = document.getElementById('shopNameInput');
+  const frameGrid = document.getElementById('frameGrid');
+  const sourceToggle = document.getElementById('sourceToggle');
+  const viewfinderWrap = document.getElementById('viewfinderWrap');
+
+  let selectedTheme = 'drip';
+  let selectedLayout = 'strip4x6'; // 'strip4x6' | 'a4poster' | 'single'
+  let selectedSource = 'camera'; // 'camera' or 'upload'
+  let stream = null;
+  let capturedImages = []; // Image objects
+  const layoutToggle = document.getElementById('layoutToggle');
+
+  function shotsNeeded(){ return selectedLayout === 'single' ? 1 : 4; }
+
+  frameGrid.addEventListener('click', (e)=>{
+    const el = e.target.closest('.frame-choice');
+    if(!el) return;
+    document.querySelectorAll('.frame-choice').forEach(f=>f.classList.remove('active'));
+    el.classList.add('active');
+    selectedTheme = el.dataset.theme;
+  });
+
+  layoutToggle.addEventListener('click', (e)=>{
+    const el = e.target.closest('.layout-btn');
+    if(!el) return;
+    layoutToggle.querySelectorAll('.layout-btn').forEach(f=>f.classList.remove('active'));
+    el.classList.add('active');
+    selectedLayout = el.dataset.layout;
+  });
+
+  sourceToggle.addEventListener('click', (e)=>{
+    const el = e.target.closest('.layout-btn');
+    if(!el) return;
+    sourceToggle.querySelectorAll('.layout-btn').forEach(f=>f.classList.remove('active'));
+    el.classList.add('active');
+    selectedSource = el.dataset.source;
+    applySourceUI();
+  });
+
+  startBtn.addEventListener('click', ()=>{
+    screenSelect.classList.add('hidden');
+    screenCapture.classList.remove('hidden');
+    appEl.classList.add('stage-capture');
+    resetCapture();
+  });
+
+  backToSelectBtn.addEventListener('click', ()=>{
+    stopCamera();
+    resetCapture();
+    screenCapture.classList.add('hidden');
+    screenSelect.classList.remove('hidden');
+    appEl.classList.remove('stage-capture');
+  });
+
+  function resetCapture(){
+    capturedImages = [];
+    thumbsRow.innerHTML = '';
+    updateShotDots();
+    captureBtn.disabled = false;
+    applySourceUI();
+  }
+
+  function applySourceUI(){
+    if(selectedSource === 'upload'){
+      stopCamera();
+      viewfinderWrap.classList.add('hidden');
+      camStatus.textContent = '請選擇要上傳的照片';
+      captureBtn.textContent = shotsNeeded() === 1 ? '選擇照片（1 張）' : `選擇照片（${shotsNeeded()} 張）`;
+    } else {
+      viewfinderWrap.classList.remove('hidden');
+      camStatus.textContent = '按下方按鈕開啟鏡頭';
+      captureBtn.textContent = '開啟鏡頭';
+    }
+  }
+
+  function stopCamera(){
+    if(stream){
+      stream.getTracks().forEach(t=>t.stop());
+      stream = null;
+    }
+  }
+
+  async function startCamera(){
+    try{
+      camStatus.textContent = '請允許使用相機權限…';
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:960}, height:{ideal:720} }, audio:false });
+      video.srcObject = stream;
+      camStatus.textContent = '準備好了就拍照吧';
+      captureBtn.textContent = shotsNeeded() === 1 ? '拍照（單張）' : `拍照（連拍 ${shotsNeeded()} 張）`;
+    }catch(err){
+      camStatus.textContent = '無法使用相機，改用上傳照片吧';
+      selectedSource = 'upload';
+      sourceToggle.querySelectorAll('.layout-btn').forEach(f=>f.classList.toggle('active', f.dataset.source === 'upload'));
+      applySourceUI();
+    }
+  }
+
+  function selectFilesFlow(){
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.onchange = ()=>{
+      const files = Array.from(input.files).slice(0, shotsNeeded() - capturedImages.length);
+      if(files.length === 0) return;
+      files.forEach(f=>{
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = (e)=>{
+          img.onload = ()=>{
+            capturedImages.push(img);
+            addThumb(img.src);
+            updateShotDots();
+            camStatus.textContent = `已選 ${capturedImages.length} / ${shotsNeeded()} 張`;
+            if(capturedImages.length >= shotsNeeded()) finishCapture();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(f);
+      });
+    };
+    input.click();
+  }
+
+  captureBtn.addEventListener('click', ()=>{
+    if(selectedSource === 'upload'){
+      selectFilesFlow();
+      return;
+    }
+    if(!stream){
+      startCamera();
+      return;
+    }
+    runCaptureSequence();
+  });
+
+  function updateShotDots(){
+    const needed = shotsNeeded();
+    if(shotIndicator.children.length !== needed){
+      shotIndicator.innerHTML = '';
+      for(let i=0;i<needed;i++){
+        const d = document.createElement('div');
+        d.className = 'shot-dot';
+        shotIndicator.appendChild(d);
+      }
+    }
+    const dots = shotIndicator.querySelectorAll('.shot-dot');
+    dots.forEach((d,i)=> d.classList.toggle('done', i < capturedImages.length));
+  }
+
+  function addThumb(src){
+    const t = document.createElement('div');
+    t.className = 'thumb';
+    t.style.backgroundImage = `url(${src})`;
+    thumbsRow.appendChild(t);
+  }
+
+  function countdownStep(n){
+    return new Promise(resolve=>{
+      countdownOverlay.innerHTML = `<div class="countdown-num">${n}</div>`;
+      setTimeout(()=>{
+        countdownOverlay.innerHTML = '';
+        resolve();
+      }, 700);
+    });
+  }
+
+  function snapPhoto(){
+    return new Promise(resolve=>{
+      flash.classList.add('flash');
+      const off = document.createElement('canvas');
+      off.width = video.videoWidth;
+      off.height = video.videoHeight;
+      const ctx = off.getContext('2d');
+      ctx.translate(off.width,0);
+      ctx.scale(-1,1);
+      ctx.drawImage(video, 0, 0, off.width, off.height);
+      const img = new Image();
+      img.onload = ()=>{
+        capturedImages.push(img);
+        addThumb(img.src);
+        updateShotDots();
+        setTimeout(()=>flash.classList.remove('flash'), 350);
+        resolve();
+      };
+      img.src = off.toDataURL('image/png');
+    });
+  }
+
+  async function runCaptureSequence(){
+    captureBtn.disabled = true;
+    resetCapture();
+    stream && (captureBtn.disabled = true);
+    const total = shotsNeeded();
+    camStatus.textContent = '準備拍第 1 張';
+    for(let shot=0; shot<total; shot++){
+      camStatus.textContent = total === 1 ? '準備' : `第 ${shot+1} 張，準備`;
+      await countdownStep(3);
+      await countdownStep(2);
+      await countdownStep(1);
+      await snapPhoto();
+      camStatus.textContent = `已拍 ${shot+1} / ${total} 張`;
+      await new Promise(r=>setTimeout(r,300));
+    }
+    finishCapture();
+  }
+
+  function finishCapture(){
+    stopCamera();
+    composeResult();
+    screenCapture.classList.add('hidden');
+    screenResult.classList.remove('hidden');
+    appEl.classList.remove('stage-capture');
+  }
+
+  retakeBtn.addEventListener('click', ()=>{
+    screenResult.classList.add('hidden');
+    screenCapture.classList.remove('hidden');
+    appEl.classList.add('stage-capture');
+    qrPanel.classList.add('hidden');
+    resetCapture();
+  });
+
+  downloadBtn.addEventListener('click', ()=>{
+    const link = document.createElement('a');
+    link.download = `生咖拍貼_${Date.now()}.png`;
+    link.href = resultCanvas.toDataURL('image/png');
+    link.click();
+  });
+
+  // ---- 手機掃描 QR Code 下載 ----
+  // 現場只有一台平板/電腦在拍，粉絲要把照片存到「自己的手機」，
+  // 沒有後端伺服器的情況下，唯一可行的作法是：先把合成好的照片上傳到一個
+  // 圖床，拿到一個網址，再把網址做成 QR Code 給粉絲掃描開啟、下載。
+  //
+  // 這裡用 Cloudinary 的「unsigned upload」（免後端、免密鑰，安全地在瀏覽器端上傳）。
+  // 使用前請先完成以下設定（皆為免費方案即可）：
+  //   1. 到 https://cloudinary.com 註冊帳號，取得 Cloud name（在 Dashboard 首頁）。
+  //   2. Settings → Upload → Upload presets → Add upload preset，
+  //      Signing Mode 選「Unsigned」，存檔後複製 preset 名稱。
+  //   3. 把下面兩個常數換成你自己的值。
+  // 注意：這種方式上傳的照片網址是「知道連結就能看」，並非私密相簿，
+  // 若在意公開性，可在 Cloudinary 設定自動刪除或改用有權限控管的圖床。
+  const CLOUDINARY_CLOUD_NAME = 'YOUR_CLOUD_NAME';
+  const CLOUDINARY_UPLOAD_PRESET = 'YOUR_UPLOAD_PRESET';
+
+  qrBtn.addEventListener('click', async ()=>{
+    qrPanel.classList.remove('hidden');
+    qrImg.classList.add('hidden');
+    qrStatus.textContent = '上傳中，請稍候…';
+    try{
+      if(CLOUDINARY_CLOUD_NAME === 'YOUR_CLOUD_NAME' || CLOUDINARY_UPLOAD_PRESET === 'YOUR_UPLOAD_PRESET'){
+        throw new Error('尚未設定圖床，請先完成程式碼裡的 Cloudinary 設定');
+      }
+      const blob = await new Promise(resolve => resultCanvas.toBlob(resolve, 'image/png'));
+      const form = new FormData();
+      form.append('file', blob);
+      form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: form
+      });
+      if(!resp.ok) throw new Error('上傳失敗，請檢查網路連線');
+      const data = await resp.json();
+      const url = data.secure_url;
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
+      qrImg.classList.remove('hidden');
+      qrStatus.textContent = '掃描後，長按照片即可存到手機相簿';
+    }catch(err){
+      qrStatus.textContent = '無法產生 QR Code：' + err.message;
+    }
+  });
+
+  qrCloseBtn.addEventListener('click', ()=>{
+    qrPanel.classList.add('hidden');
+  });
+
+  // ---- Compositing ----
+  function coverDraw(ctx, img, x, y, w, h){
+    const ir = img.width / img.height;
+    const r = w / h;
+    let sx, sy, sw, sh;
+    if(ir > r){
+      sh = img.height; sw = sh * r;
+      sx = (img.width - sw) / 2; sy = 0;
+    } else {
+      sw = img.width; sh = sw / r;
+      sx = 0; sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function drawDrip(ctx, x, y, s, color){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = s*0.06;
+    ctx.beginPath();
+    ctx.moveTo(-s*0.5, -s*0.5);
+    ctx.lineTo(s*0.5, -s*0.5);
+    ctx.lineTo(0, s*0.35);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, s*0.6, s*0.08, s*0.12, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawLeaf(ctx, x, y, s, color){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = s*0.05;
+    ctx.beginPath();
+    ctx.moveTo(-s*0.5, s*0.3);
+    ctx.quadraticCurveTo(0, -s*0.7, s*0.5, s*0.3);
+    ctx.quadraticCurveTo(0, s*0.05, -s*0.5, s*0.3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-s*0.35, s*0.15);
+    ctx.lineTo(s*0.35, s*0.15);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function composeResult(){
+    const ctx = resultCanvas.getContext('2d');
+
+    const shopName = (shopNameInput.value || '生咖 Café').trim();
+    const dateStr = new Date().toLocaleDateString('zh-TW', {year:'numeric', month:'2-digit', day:'2-digit'});
+    const timeStr = new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12:false});
+
+    const themes = {
+      drip:{ bg:'#F0E6D2', line:'#3A2A1E', text:'#3A2A1E', sub:'rgba(58,42,30,0.55)', cellBorder:'#3A2A1E', dashed:false, mono:false, footerBg:'#F7F1E4' },
+      forest:{ bg:'#DCE3D0', line:'#6B7A52', text:'#41492F', sub:'rgba(65,73,47,0.6)', cellBorder:'#6B7A52', dashed:true, mono:false, footerBg:'#E7EBDD' },
+      retro:{ bg:'#241A12', line:'#C08A2E', text:'#F0E6D2', sub:'rgba(240,230,210,0.55)', cellBorder:'#4A3222', dashed:false, mono:true, footerBg:'#1B140E' }
+    };
+    const t = themes[selectedTheme];
+    const themeLabel = { drip:'手沖角落', forest:'森林早晨', retro:'復古沖印' }[selectedTheme];
+
+    let W, H, pad, cells, footerY, footerH, headerY = 0, headerH = 0;
+
+    if(selectedLayout === 'a4poster'){
+      // A4 直式（2480×3508），四格橫幅排成 2×2，上方留大標題做出報紙感
+      W = 2480; H = 3508;
+      pad = 90;
+      const colGap = 40, rowGap = 40;
+      headerY = pad;
+      headerH = 340;   // 版頭實際內容高度（大標＋副標＋雙線）
+      footerH = 300;   // 頁尾實際內容高度（分隔線＋日期時間）
+      const cellW = (W - pad*2 - colGap) / 2;
+      const cellH = Math.round(cellW * 0.78); // 橫幅比例，比舊版更高一點
+      const photosH = cellH*2 + rowGap;
+      // 版頭下緣到照片、照片到頁尾上緣，用同一條公式算出來，保證上下留白等距
+      const gap = (H - pad - headerH - photosH - footerH) / 2;
+      const middleTop = headerY + headerH + gap;
+      cells = [
+        {x:pad,              y:middleTop,              w:cellW, h:cellH},
+        {x:pad+cellW+colGap, y:middleTop,              w:cellW, h:cellH},
+        {x:pad,              y:middleTop+cellH+rowGap, w:cellW, h:cellH},
+        {x:pad+cellW+colGap, y:middleTop+cellH+rowGap, w:cellW, h:cellH}
+      ];
+      footerY = H - footerH;
+    } else if(selectedLayout === 'single'){
+      W = 1200;
+      pad = 40; footerH = 260;
+      const cellW = W - pad*2;
+      const cellH = Math.round(cellW * 4/3);
+      H = pad*2 + cellH + footerH;
+      cells = [{x:pad, y:pad, w:cellW, h:cellH}];
+      footerY = H - footerH;
+    } else {
+      // strip4x6（預設）：整張 4×6（1200×1800），四格 2×2、每格直式
+      W = 1200; H = 1800;
+      pad = 40; footerH = 240;
+      const gap = 20;
+      const cellW = (W - pad*2 - gap) / 2;
+      const cellH = (H - pad*2 - gap - footerH) / 2;
+      cells = [
+        {x:pad,           y:pad,           w:cellW, h:cellH},
+        {x:pad+cellW+gap, y:pad,           w:cellW, h:cellH},
+        {x:pad,           y:pad+cellH+gap, w:cellW, h:cellH},
+        {x:pad+cellW+gap, y:pad+cellH+gap, w:cellW, h:cellH}
+      ];
+      footerY = H - footerH;
+    }
+
+    resultCanvas.width = W;
+    resultCanvas.height = H;
+
+    // background
+    ctx.fillStyle = t.bg;
+    ctx.fillRect(0,0,W,H);
+
+    // masthead（僅 a4poster）
+    if(selectedLayout === 'a4poster'){
+      ctx.fillStyle = t.text;
+      ctx.textAlign = 'center';
+      ctx.font = "900 128px 'Noto Serif TC', serif";
+      ctx.fillText(shopName, W/2, headerY + 190);
+      ctx.font = "500 42px 'Noto Sans TC', sans-serif";
+      ctx.fillStyle = t.sub;
+      ctx.fillText(`${dateStr}　${themeLabel}　拍貼機`, W/2, headerY + 258);
+      ctx.strokeStyle = t.line;
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(pad, headerY+306); ctx.lineTo(W-pad, headerY+306); ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(pad, headerY+318); ctx.lineTo(W-pad, headerY+318); ctx.stroke();
+      ctx.textAlign = 'left';
+    }
+
+    // 主題裝飾
+    if(selectedLayout === 'a4poster'){
+      const isz = W*0.045;
+      if(selectedTheme === 'drip') drawDrip(ctx, W-pad-isz*0.6, pad+isz*0.6, isz, t.line);
+      else if(selectedTheme === 'forest') drawLeaf(ctx, W-pad-isz*0.6, pad+isz*0.6, isz*1.05, t.line);
+      else if(selectedTheme === 'retro'){
+        const holeR = W*0.008;
+        for(let yy = headerY+headerH+30; yy < footerY; yy += W*0.045){
+          ctx.beginPath(); ctx.arc(pad*0.4, yy, holeR, 0, Math.PI*2); ctx.fillStyle='#F0E6D2'; ctx.globalAlpha=0.15; ctx.fill();
+          ctx.beginPath(); ctx.arc(W-pad*0.4, yy, holeR, 0, Math.PI*2); ctx.fill();
+          ctx.globalAlpha=1;
+        }
+      }
+    } else {
+      const isz = W*0.0875;
+      if(selectedTheme === 'drip') drawDrip(ctx, W-isz, isz*0.96, isz, t.line);
+      else if(selectedTheme === 'forest') drawLeaf(ctx, W-isz, isz*0.96, isz*1.07, t.line);
+      else if(selectedTheme === 'retro'){
+        const holeR = W*0.011;
+        for(let yy = pad; yy < footerY; yy += W*0.055){
+          ctx.beginPath(); ctx.arc(pad*0.35, yy, holeR, 0, Math.PI*2); ctx.fillStyle='#F0E6D2'; ctx.globalAlpha=0.15; ctx.fill();
+          ctx.beginPath(); ctx.arc(W-pad*0.35, yy, holeR, 0, Math.PI*2); ctx.fill();
+          ctx.globalAlpha=1;
+        }
+      }
+    }
+
+    // photo cells
+    const cellRadius = Math.max(6, Math.round(W*0.012));
+    cells.forEach((c, i)=>{
+      ctx.save();
+      roundRectPath(ctx, c.x, c.y, c.w, c.h, cellRadius);
+      ctx.clip();
+      if(capturedImages[i]){
+        coverDraw(ctx, capturedImages[i], c.x, c.y, c.w, c.h);
+        if(selectedTheme === 'retro'){
+          ctx.fillStyle = 'rgba(36,26,18,0.18)';
+          ctx.fillRect(c.x, c.y, c.w, c.h);
+        }
+      } else {
+        ctx.fillStyle = '#d8cba8';
+        ctx.fillRect(c.x, c.y, c.w, c.h);
+      }
+      ctx.restore();
+      ctx.save();
+      roundRectPath(ctx, c.x, c.y, c.w, c.h, cellRadius);
+      ctx.lineWidth = Math.max(2, Math.round(W*0.0025));
+      ctx.strokeStyle = t.cellBorder;
+      if(t.dashed) ctx.setLineDash([W*0.008, W*0.0065]);
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // footer
+    ctx.fillStyle = t.footerBg;
+    ctx.fillRect(0, footerY, W, footerH);
+    ctx.strokeStyle = t.line;
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(pad, footerY);
+    ctx.lineTo(W-pad, footerY);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    if(selectedLayout === 'a4poster'){
+      ctx.fillStyle = t.sub;
+      ctx.font = "400 40px 'Noto Sans TC', sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillText(`${dateStr}　${timeStr}`, W/2, footerY + footerH*0.55);
+      ctx.textAlign = 'left';
+    } else {
+      ctx.fillStyle = t.text;
+      ctx.textBaseline = 'alphabetic';
+      ctx.font = "700 " + Math.round(W*0.047) + "px 'Noto Serif TC', serif";
+      ctx.fillText(shopName, pad, footerY + footerH*0.42);
+
+      ctx.fillStyle = t.sub;
+      ctx.font = "400 " + Math.round(W*0.025) + "px 'Noto Sans TC', sans-serif";
+      const stamp = selectedTheme === 'retro' ? `${dateStr}  ${timeStr}` : `${dateStr}`;
+      ctx.fillText(stamp, pad, footerY + footerH*0.68);
+
+      ctx.textAlign = 'right';
+      ctx.fillText(themeLabel, W - pad, footerY + footerH*0.68);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  // ensure canvas has something drawn even before capture (placeholder preview)
+  composeResult();
+})();
+</script>
+</body>
+</html>
