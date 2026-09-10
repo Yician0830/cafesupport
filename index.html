@@ -318,7 +318,7 @@
     <h1 class="title">選一款相框</h1>
     <p class="desc">拍完會自動套上，也可以印上想留下的名字或一句話。</p>
 
-    <label class="field-label" for="shopNameInput">可以打上你的祝福</label>
+    <label class="field-label" for="shopNameInput">打上你的祝福</label>
     <input class="name-input" id="shopNameInput" maxlength="14" value="young forever " placeholder="例如：young forever">
 
     <div class="frames" id="frameGrid">
@@ -337,7 +337,7 @@
     </div>
     <div class="frame-choice" data-theme="retro">
         <div class="swatch theme-retro"></div>
-        <div class="fname">2.0</div>
+        <div class="fname">NORMAL</div>
       </div>
     </div>
   <div class="frame-choice" data-theme="retro">
@@ -797,6 +797,7 @@
     };
     const t = themes[selectedTheme];
     const themeLabel = { drip:'花樣年華', forest:'SWIM', retro:'2.0' }[selectedTheme];
+    const themeLabel = { drip:'NORMAL', forest:'TAETAE', retro:'TANTAN' }[selectedTheme];
 
     let W, H, pad, cells, footerY, footerH, headerY = 0, headerH = 0;
 
