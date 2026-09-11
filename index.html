@@ -136,7 +136,7 @@
     border-radius:8px;
     margin-bottom:6px;
   }
-  .swatch.theme-drip{background: url('image/LOGO4.jpg') center/cover; }
+  .swatch.theme-youngforever{background: url('image/LOGO4.jpg') center/cover; }
   .swatch.theme-forest{background: url('image/LOGO1.jpg') center/cover;}
   .swatch.theme-retro{background: url('image/LOGO3.jpg') center/cover;}
   .swatch.theme-layover{background: url('image/LOGO2.jpg') center/cover;}
@@ -335,8 +335,8 @@
     <input class="name-input" id="shopNameInput" maxlength="14" value="young forever " placeholder="例如：young forever">
 
     <div class="frames" id="frameGrid">
-      <div class="frame-choice active" data-theme="drip">
-        <div class="swatch theme-drip"></div>
+      <div class="frame-choice active" data-theme="youngforever">
+        <div class="swatch theme-youngforever"></div>
         <div class="fname">花樣年華</div>
       </div>
       <div class="frame-choice" data-theme="forest">
@@ -503,7 +503,7 @@
   const sourceToggle = document.getElementById('sourceToggle');
   const viewfinderWrap = document.getElementById('viewfinderWrap');
 
-  let selectedTheme = 'drip';
+  let selectedTheme = 'youngforever';
   let selectedLayout = 'strip4x6'; // 'strip4x6' | 'a4poster' | 'single'
   let selectedSource = 'camera'; // 'camera' or 'upload'
   let stream = null;
@@ -1070,7 +1070,7 @@
     const timeStr = new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12:false});
 
     const themes = {
-      drip:{ bg:'#F0E6D2', line:'#3A2A1E', text:'#3A2A1E', sub:'rgba(58,42,30,0.55)', cellBorder:'#3A2A1E', dashed:false, mono:false, footerBg:'#F7F1E4' },
+      youngforever:{ bg:'#F0E6D2', line:'#3A2A1E', text:'#3A2A1E', sub:'rgba(58,42,30,0.55)', cellBorder:'#3A2A1E', dashed:false, mono:false, footerBg:'#F7F1E4' },
       forest:{ bg:'#DCE3D0', line:'#6B7A52', text:'#41492F', sub:'rgba(65,73,47,0.6)', cellBorder:'#6B7A52', dashed:true, mono:false, footerBg:'#E7EBDD' },
       retro:{ bg:'#241A12', line:'#C08A2E', text:'#F0E6D2', sub:'rgba(240,230,210,0.55)', cellBorder:'#4A3222', dashed:false, mono:true, footerBg:'#1B140E' },
       layover:{ bg:'#A98BD9', line:'#7B57B0', text:'#FFFFFF', sub:'rgba(255,255,255,0.75)', cellBorder:'#A98BD9', dashed:false, mono:false, footerBg:'#A98BD9' },
@@ -1078,7 +1078,7 @@
       tantan:{ bg:'#DCEFFC', line:'#3E7CA6', text:'#20415A', sub:'rgba(32,65,90,0.55)', cellBorder:'#3E7CA6', dashed:true, mono:false, footerBg:'#E9F5FD' }
     };
     const t = themes[selectedTheme];
-    const themeLabel = { drip:'花樣年華', forest:'SWIM', retro:'2.0', layover:'LAYOVER', taetae:'TAETAE', tantan:'TANTAN' }[selectedTheme];
+    const themeLabel = { youngforever:'花樣年華', forest:'SWIM', retro:'2.0', layover:'LAYOVER', taetae:'TAETAE', tantan:'TANTAN' }[selectedTheme];
 
     let W, H, pad, cells, footerY, footerH, headerY = 0, headerH = 0;
 
@@ -1185,7 +1185,7 @@
 
     // 主題裝飾
     const isz = W*0.0875;
-    if(selectedTheme === 'drip') drawDrip(ctx, W-isz, isz*0.96, isz, t.line);
+    if(selectedTheme === 'youngforever') drawDrip(ctx, W-isz, isz*0.96, isz, t.line);
     else if(selectedTheme === 'forest') drawLeaf(ctx, W-isz, isz*0.96, isz*1.07, t.line);
     else if(selectedTheme === 'retro'){
       const holeR = W*0.011;
