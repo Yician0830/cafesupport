@@ -375,7 +375,7 @@
 </button>
       <button class="layout-btn" data-source="upload" type="button">
         <img class="layout-icon" src="image/picture.png" alt="">
-        <div class="lname">自行上傳</div>
+        <div class="lname">手機掃碼上傳</div>
       </button>
     </div>
 
@@ -411,6 +411,15 @@
     <div class="thumbs-row" id="thumbsRow"></div>
     <button class="primary" id="captureBtn">開啟鏡頭</button>
     <button class="ghost" id="backToSelectBtn">返回選框</button>
+
+    <div class="qr-panel hidden" id="uploadQrPanel">
+      <div class="qr-panel-inner">
+        <div class="qr-title">請用手機掃描上傳照片</div>
+        <img class="qr-img hidden" id="uploadQrImg" alt="手機上傳連結 QR Code">
+        <div class="qr-status" id="uploadQrStatus"></div>
+        <button class="ghost" id="uploadQrCancelBtn">取消</button>
+      </div>
+    </div>
   </div>
 
   <!-- SCREEN 3: RESULT -->
@@ -449,6 +458,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyCm5OU5CvdqIgsW4d6W2b9EnIqZt5Apz0g",
@@ -462,6 +472,7 @@
   };
   firebase.initializeApp(firebaseConfig);
   window.forusStorage = firebase.storage();
+  window.forusDB = firebase.database();
 </script>
 <script>
 (function(){
@@ -472,6 +483,10 @@
   const startBtn = document.getElementById('startBtn');
   const captureBtn = document.getElementById('captureBtn');
   const backToSelectBtn = document.getElementById('backToSelectBtn');
+  const uploadQrPanel = document.getElementById('uploadQrPanel');
+  const uploadQrImg = document.getElementById('uploadQrImg');
+  const uploadQrStatus = document.getElementById('uploadQrStatus');
+  const uploadQrCancelBtn = document.getElementById('uploadQrCancelBtn');
   const retakeBtn = document.getElementById('retakeBtn');
   const downloadBtn = document.getElementById('downloadBtn');
   const qrBtn = document.getElementById('qrBtn');
@@ -611,6 +626,7 @@
     thumbsRow.innerHTML = '';
     updateShotDots();
     captureBtn.disabled = false;
+    cancelPhoneUpload();
     applySourceUI();
   }
 
@@ -618,8 +634,8 @@
     if(selectedSource === 'upload'){
       stopCamera();
       viewfinderWrap.classList.add('hidden');
-      camStatus.textContent = '請選擇要上傳的照片';
-      captureBtn.textContent = shotsNeeded() === 1 ? '選擇照片（1 張）' : `選擇照片（${shotsNeeded()} 張）`;
+      camStatus.textContent = '請用手機掃描 QR Code 上傳照片';
+      captureBtn.textContent = shotsNeeded() === 1 ? '產生上傳 QR Code（1 張）' : `產生上傳 QR Code（${shotsNeeded()} 張）`;
     } else {
       viewfinderWrap.classList.remove('hidden');
       if(stream){
@@ -649,43 +665,127 @@
       camStatus.textContent = '準備好了就拍照吧';
       captureBtn.textContent = shotsNeeded() === 1 ? '拍照（單張）' : `拍照（連拍 ${shotsNeeded()} 張）`;
     }catch(err){
-      camStatus.textContent = '無法使用相機，改用上傳照片吧';
+      camStatus.textContent = '無法使用相機，改用手機掃碼上傳吧';
       selectedSource = 'upload';
       sourceToggle.querySelectorAll('.layout-btn').forEach(f=>f.classList.toggle('active', f.dataset.source === 'upload'));
       applySourceUI();
     }
   }
 
-  function selectFilesFlow(){
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    input.onchange = ()=>{
-      const files = Array.from(input.files).slice(0, shotsNeeded() - capturedImages.length);
-      if(files.length === 0) return;
-      files.forEach(f=>{
-        const img = new Image();
-        const reader = new FileReader();
-        reader.onload = (e)=>{
-          img.onload = ()=>{
-            capturedImages.push(img);
-            addThumb(img.src);
-            updateShotDots();
-            camStatus.textContent = `已選 ${capturedImages.length} / ${shotsNeeded()} 張`;
-            if(capturedImages.length >= shotsNeeded()) finishCapture();
-          };
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(f);
-      });
-    };
-    input.click();
+  // ---- 手機掃碼上傳照片 ----
+  // 「照片來源」選手機掃碼上傳時，按下按鈕不是打開本機檔案總管，而是：
+  //   1. 產生一組隨機場次代碼 sessionId
+  //   2. 把「mobile-upload.html?session=xxx&count=N」做成 QR Code 給粉絲掃
+  //   3. 粉絲在自己手機上選照片、直接上傳到 Firebase（Storage + Realtime Database）
+  //   4. 這台裝置監聽 Realtime Database，照片一到齊就自動抓下來合成
+  // 上傳/監聽都需要先完成第一次對話裡提到的 Firebase Storage 規則設定，
+  // 另外 Realtime Database 也要記得到 Firebase Console → Realtime Database → Rules
+  // 開放讀寫（一樣建議僅限活動期間開放，之後改回需要驗證）：
+  //   { "rules": { ".read": true, ".write": true } }
+  let uploadSession = null; // { id, ref }
+  let loadingUploadedPhotos = false;
+
+  function randomSessionId(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
+
+  function buildMobileUploadUrl(sessionId, count){
+    const base = location.href.replace(/[^/]*$/, ''); // 目前這頁所在的資料夾
+    return `${base}mobile-upload.html?session=${sessionId}&count=${count}`;
+  }
+
+  function cancelPhoneUpload(){
+    if(uploadSession && uploadSession.ref){
+      uploadSession.ref.off();
+    }
+    uploadSession = null;
+    uploadQrPanel.classList.add('hidden');
+    uploadQrImg.classList.add('hidden');
+  }
+
+  function cleanupUploadSession(sessionId){
+    // 照片都已經讀進這台裝置、也用來合成了，雲端上的暫存資料就可以清掉
+    if(window.forusDB) window.forusDB.ref('sessions/' + sessionId).remove().catch(()=>{});
+    if(window.forusStorage){
+      window.forusStorage.ref('sessions/' + sessionId).listAll()
+        .then(res => res.items.forEach(item => item.delete().catch(()=>{})))
+        .catch(()=>{});
+    }
+  }
+
+  function loadImageFromUrl(url){
+    return new Promise((resolve, reject)=>{
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = ()=> resolve(img);
+      img.onerror = ()=> reject(new Error('照片載入失敗'));
+      img.src = url;
+    });
+  }
+
+  async function handleUploadedPhotos(urls, needed, sessionId){
+    if(loadingUploadedPhotos) return;
+    if(urls.length < needed) return;
+    if(!uploadSession || uploadSession.id !== sessionId) return; // 場次已切換，忽略舊資料
+    loadingUploadedPhotos = true;
+    try{
+      capturedImages = [];
+      thumbsRow.innerHTML = '';
+      for(const url of urls.slice(0, needed)){
+        const img = await loadImageFromUrl(url);
+        capturedImages.push(img);
+        addThumb(img.src);
+        updateShotDots();
+      }
+      uploadQrStatus.textContent = '上傳完成！正在產生拍貼…';
+      const finishedSessionId = sessionId;
+      if(uploadSession && uploadSession.ref) uploadSession.ref.off();
+      uploadSession = null;
+      setTimeout(()=>{
+        uploadQrPanel.classList.add('hidden');
+        cleanupUploadSession(finishedSessionId);
+        finishCapture();
+      }, 500);
+    }catch(err){
+      uploadQrStatus.textContent = '讀取照片失敗，請粉絲重新上傳：' + err.message;
+    }finally{
+      loadingUploadedPhotos = false;
+    }
+  }
+
+  function startPhoneUploadFlow(){
+    if(!window.forusDB || !window.forusStorage){
+      camStatus.textContent = 'Firebase 尚未初始化，無法使用手機上傳';
+      return;
+    }
+    const needed = shotsNeeded();
+    const sessionId = randomSessionId();
+    const url = buildMobileUploadUrl(sessionId, needed);
+
+    uploadQrPanel.classList.remove('hidden');
+    uploadQrImg.classList.remove('hidden');
+    uploadQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
+    uploadQrStatus.textContent = `請用手機掃描 QR Code 上傳照片（0 / ${needed}）`;
+
+    const sessionRef = window.forusDB.ref('sessions/' + sessionId + '/photos');
+    uploadSession = { id: sessionId, ref: sessionRef };
+
+    sessionRef.on('value', (snapshot)=>{
+      const data = snapshot.val() || {};
+      const urls = Object.keys(data).sort((a,b)=>Number(a)-Number(b)).map(k=>data[k]);
+      if(!uploadSession || uploadSession.id !== sessionId) return;
+      uploadQrStatus.textContent = `請用手機掃描 QR Code 上傳照片（${Math.min(urls.length, needed)} / ${needed}）`;
+      handleUploadedPhotos(urls, needed, sessionId);
+    });
+  }
+
+  uploadQrCancelBtn.addEventListener('click', ()=>{
+    cancelPhoneUpload();
+  });
 
   captureBtn.addEventListener('click', ()=>{
     if(selectedSource === 'upload'){
-      selectFilesFlow();
+      startPhoneUploadFlow();
       return;
     }
     if(!stream){
