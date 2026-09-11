@@ -137,8 +137,8 @@
     margin-bottom:6px;
   }
   .swatch.theme-youngforever{background: url('image/LOGO4.jpg') center/cover; }
-  .swatch.theme-forest{background: url('image/LOGO1.jpg') center/cover;}
-  .swatch.theme-retro{background: url('image/LOGO3.jpg') center/cover;}
+  .swatch.theme-swim{background: url('image/LOGO1.jpg') center/cover;}
+  .swatch.theme-2\.0{background: url('image/LOGO3.jpg') center/cover;}
   .swatch.theme-layover{background: url('image/LOGO2.jpg') center/cover;}
   .swatch.theme-taetae{background: url('image/LOGO6.jpg') center/cover;}
   .swatch.theme-tantan{background: url('image/LOGO5.jpg') center/cover;}
@@ -223,6 +223,42 @@
     transition:aspect-ratio .2s ease;
   }
   video{width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block;}
+  .frame-guide{
+    position:absolute; inset:0;
+    pointer-events:none;
+    z-index:2;
+  }
+  .frame-guide::before{
+    content:'';
+    position:absolute;
+    left:8%; right:8%; top:6%; bottom:10%;
+    border:2px dashed rgba(255,255,255,0.85);
+    border-radius:10px;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.25);
+  }
+  .frame-guide .fg-corner{
+    position:absolute;
+    width:22px; height:22px;
+    border-color:#fff;
+    border-style:solid;
+    border-width:0;
+    filter:drop-shadow(0 0 2px rgba(0,0,0,0.6));
+  }
+  .frame-guide .fg-tl{ left:8%; top:6%; border-top-width:4px; border-left-width:4px; }
+  .frame-guide .fg-tr{ right:8%; top:6%; border-top-width:4px; border-right-width:4px; }
+  .frame-guide .fg-bl{ left:8%; bottom:10%; border-bottom-width:4px; border-left-width:4px; }
+  .frame-guide .fg-br{ right:8%; bottom:10%; border-bottom-width:4px; border-right-width:4px; }
+  .frame-guide .fg-hint{
+    position:absolute;
+    left:50%; bottom:2%;
+    transform:translateX(-50%);
+    font-size:12px;
+    color:#fff;
+    background:rgba(0,0,0,0.45);
+    padding:2px 10px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
   .countdown-overlay{
     position:absolute; inset:0;
     display:flex; align-items:center; justify-content:center;
@@ -339,12 +375,12 @@
         <div class="swatch theme-youngforever"></div>
         <div class="fname">花樣年華</div>
       </div>
-      <div class="frame-choice" data-theme="forest">
-        <div class="swatch theme-forest"></div>
+      <div class="frame-choice" data-theme="swim">
+        <div class="swatch theme-swim"></div>
         <div class="fname">SWIM</div>
       </div>
-      <div class="frame-choice" data-theme="retro">
-        <div class="swatch theme-retro"></div>
+      <div class="frame-choice" data-theme="2.0">
+        <div class="swatch theme-2.0"></div>
         <div class="fname">2.0</div>
       </div>
       <div class="frame-choice" data-theme="layover">
@@ -397,6 +433,13 @@
     <h1 class="title">準備好了嗎？</h1>
     <div class="viewfinder-wrap" id="viewfinderWrap">
       <video id="video" autoplay playsinline muted></video>
+      <div class="frame-guide" id="frameGuide">
+        <div class="fg-corner fg-tl"></div>
+        <div class="fg-corner fg-tr"></div>
+        <div class="fg-corner fg-bl"></div>
+        <div class="fg-corner fg-br"></div>
+        <div class="fg-hint">把臉和肩膀對齊虛線框內</div>
+      </div>
       <div class="snap-flash" id="flash"></div>
       <div class="shot-indicator" id="shotIndicator"></div>
       <div class="countdown-overlay" id="countdownOverlay"></div>
@@ -511,45 +554,59 @@
   let capturedImages = []; // Image objects
   const layoutToggle = document.getElementById('layoutToggle');
 
-  // LAYOVER 主題：直接使用實際相框圖檔（透明窗格 + 版面 + LOGO 一次到位）
-  let layoverFrameImg_strip4x6 = new Image();
-  let layoverFrameReady_strip4x6 = false;
-  layoverFrameImg_strip4x6.onload = ()=>{ layoverFrameReady_strip4x6 = true; composeResult(); };
-  layoverFrameImg_strip4x6.src = 'image/IMG_0087.PNG';
+  // ============================================================
+  // 六個主題的相框圖檔路徑設定
+  // 每個主題都有 3 種版面（strip4x6 / a4poster / single）各自的相框圖
+  // 之後只要把設計好的圖片檔放進 GitHub 的 image/frames/ 資料夾，
+  // 並把下面對應的路徑改成你的檔名即可（不用動其他程式碼）。
+  // 相框圖需為「透明窗格」PNG：窗格（照片要露出的地方）保持透明，
+  // 其餘畫面（外框、裝飾、品牌文字等）會直接疊在照片上方。
+  // ============================================================
+  const FRAME_IMAGE_PATHS = {
+    youngforever: {
+      strip4x6:  'image/frames/youngforever-strip4x6.png',
+      a4poster:  'image/frames/youngforever-a4poster.png',
+      single:    'image/frames/youngforever-single.png'
+    },
+    swim: {
+      strip4x6:  'image/frames/forest-strip4x6.png',
+      a4poster:  'image/frames/forest-a4poster.png',
+      single:    'image/frames/forest-single.png'
+    },
+    '2.0': {
+      strip4x6:  'image/IMG_0088.PNG',
+      a4poster:  'image/IMG_0089.png',
+      single:    'image/IMG_0090.png'
+    },
+    layover: {
+      strip4x6:  'image/IMG_0087.PNG',
+      a4poster:  'image/IMG_0086.png',
+      single:    'image/IMG_0085.png'
+    },
+    taetae: {
+      strip4x6:  'image/frames/taetae-strip4x6.png',
+      a4poster:  'image/frames/taetae-a4poster.png',
+      single:    'image/frames/taetae-single.png'
+    },
+    tantan: {
+      strip4x6:  'image/frames/tantan-strip4x6.png',
+      a4poster:  'image/frames/tantan-a4poster.png',
+      single:    'image/frames/tantan-single.png'
+    }
+  };
 
-  let layoverFrameImg_a4poster = new Image();
-  let layoverFrameReady_a4poster = false;
-  layoverFrameImg_a4poster.onload = ()=>{ layoverFrameReady_a4poster = true; composeResult(); };
-  layoverFrameImg_a4poster.src = 'image/IMG_0086.png';
-
-  let layoverFrameImg_single = new Image();
-  let layoverFrameReady_single = false;
-  layoverFrameImg_single.onload = ()=>{ layoverFrameReady_single = true; composeResult(); };
-  layoverFrameImg_single.src = 'image/IMG_0085.png';
-
-  // 相框圖檔中透明窗格的實際座標（1200×1800 畫布）
-  const LAYOVER_CELLS = [
-    {x:40,  y:40,  w:548, h:729},
-    {x:612, y:40,  w:548, h:729},
-    {x:40,  y:791, w:548, h:729},
-    {x:612, y:791, w:548, h:729}
-  ];
-
-    // 2.0 主題：三種尺寸各自的相框圖檔（透明窗格露出照片）
-  let retroFrameImg_strip4x6 = new Image();
-  let retroFrameReady_strip4x6 = false;
-  retroFrameImg_strip4x6.onload = ()=>{ retroFrameReady_strip4x6 = true; composeResult(); };
-  retroFrameImg_strip4x6.src = 'image/IMG_0088.PNG';
-
-  let retroFrameImg_a4poster = new Image();
-  let retroFrameReady_a4poster = false;
-  retroFrameImg_a4poster.onload = ()=>{ retroFrameReady_a4poster = true; composeResult(); };
-  retroFrameImg_a4poster.src = 'image/IMG_0089.png';
-
-  let retroFrameImg_single = new Image();
-  let retroFrameReady_single = false;
-  retroFrameImg_single.onload = ()=>{ retroFrameReady_single = true; composeResult(); };
-  retroFrameImg_single.src = 'image/IMG_0090.png';
+  // 依上面的路徑設定，預先載入所有相框圖檔
+  // frameImages[主題名稱][版面名稱] = { img, ready }
+  const frameImages = {};
+  Object.keys(FRAME_IMAGE_PATHS).forEach(theme=>{
+    frameImages[theme] = {};
+    Object.keys(FRAME_IMAGE_PATHS[theme]).forEach(layout=>{
+      const entry = { img: new Image(), ready: false };
+      entry.img.onload = ()=>{ entry.ready = true; composeResult(); };
+      entry.img.src = FRAME_IMAGE_PATHS[theme][layout];
+      frameImages[theme][layout] = entry;
+    });
+  });
 
   function shotsNeeded(){ return selectedLayout === 'single' ? 1 : 4; }
 
@@ -1071,14 +1128,14 @@
 
     const themes = {
       youngforever:{ bg:'#F0E6D2', line:'#3A2A1E', text:'#3A2A1E', sub:'rgba(58,42,30,0.55)', cellBorder:'#3A2A1E', dashed:false, mono:false, footerBg:'#F7F1E4' },
-      forest:{ bg:'#DCE3D0', line:'#6B7A52', text:'#41492F', sub:'rgba(65,73,47,0.6)', cellBorder:'#6B7A52', dashed:true, mono:false, footerBg:'#E7EBDD' },
-      retro:{ bg:'#241A12', line:'#C08A2E', text:'#F0E6D2', sub:'rgba(240,230,210,0.55)', cellBorder:'#4A3222', dashed:false, mono:true, footerBg:'#1B140E' },
+      swim:{ bg:'#DCE3D0', line:'#6B7A52', text:'#41492F', sub:'rgba(65,73,47,0.6)', cellBorder:'#6B7A52', dashed:true, mono:false, footerBg:'#E7EBDD' },
+      '2.0':{ bg:'#241A12', line:'#C08A2E', text:'#F0E6D2', sub:'rgba(240,230,210,0.55)', cellBorder:'#4A3222', dashed:false, mono:true, footerBg:'#1B140E' },
       layover:{ bg:'#A98BD9', line:'#7B57B0', text:'#FFFFFF', sub:'rgba(255,255,255,0.75)', cellBorder:'#A98BD9', dashed:false, mono:false, footerBg:'#A98BD9' },
       taetae:{ bg:'#FBE4E4', line:'#C2555A', text:'#7A2E32', sub:'rgba(122,46,50,0.55)', cellBorder:'#C2555A', dashed:false, mono:false, footerBg:'#FBEAEA' },
       tantan:{ bg:'#DCEFFC', line:'#3E7CA6', text:'#20415A', sub:'rgba(32,65,90,0.55)', cellBorder:'#3E7CA6', dashed:true, mono:false, footerBg:'#E9F5FD' }
     };
     const t = themes[selectedTheme];
-    const themeLabel = { youngforever:'花樣年華', forest:'SWIM', retro:'2.0', layover:'LAYOVER', taetae:'TAETAE', tantan:'TANTAN' }[selectedTheme];
+    const themeLabel = { youngforever:'花樣年華', swim:'SWIM', '2.0':'2.0', layover:'LAYOVER', taetae:'TAETAE', tantan:'TANTAN' }[selectedTheme];
 
     let W, H, pad, cells, footerY, footerH, headerY = 0, headerH = 0;
 
@@ -1122,15 +1179,13 @@
     resultCanvas.width = W;
     resultCanvas.height = H;
 
-    // LAYOVER 主題：直接把實際相框圖檔疊上去（透明窗格露出照片，其餘含 LOGO 一次到位）
-    if(selectedTheme === 'layover'){
-      const layoverFrameMap = {
-        strip4x6: [layoverFrameImg_strip4x6, layoverFrameReady_strip4x6],
-        a4poster: [layoverFrameImg_a4poster, layoverFrameReady_a4poster],
-        single:   [layoverFrameImg_single,   layoverFrameReady_single]
-      };
-      const pick = layoverFrameMap[selectedLayout];
-      if(pick && pick[0] && pick[1]){
+    // 六個主題共用：若該主題＋版面的相框圖檔已載入完成，
+    // 就直接把「透明窗格」相框圖疊在照片上方（外框、裝飾、LOGO 一次到位）。
+    // 圖檔尚未載入完成時，會先用下面的程式畫出的暫時版面頂著，
+    // 等圖片載入好會自動重畫成正式相框。
+    {
+      const entry = frameImages[selectedTheme] && frameImages[selectedTheme][selectedLayout];
+      if(entry && entry.ready){
         ctx.fillStyle = t.bg;
         ctx.fillRect(0, 0, W, H);
         cells.forEach((c, i)=>{
@@ -1146,35 +1201,7 @@
             ctx.fillRect(c.x, c.y, c.w, c.h);
           }
         });
-        ctx.drawImage(pick[0], 0, 0, W, H);
-        return;
-      }
-    }
-        // 2.0 主題：依版面尺寸疊上對應的相框圖檔
-    if(selectedTheme === 'retro'){
-      const retroFrameMap = {
-        strip4x6: [retroFrameImg_strip4x6, retroFrameReady_strip4x6],
-        a4poster: [retroFrameImg_a4poster, retroFrameReady_a4poster],
-        single:   [retroFrameImg_single,   retroFrameReady_single]
-      };
-      const pick = retroFrameMap[selectedLayout];
-      if(pick && pick[0] && pick[1]){
-        ctx.fillStyle = t.bg;
-        ctx.fillRect(0, 0, W, H);
-        cells.forEach((c, i)=>{
-          if(capturedImages[i]){
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(c.x, c.y, c.w, c.h);
-            ctx.clip();
-            coverDraw(ctx, capturedImages[i], c.x, c.y, c.w, c.h);
-            ctx.restore();
-          } else {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(c.x, c.y, c.w, c.h);
-          }
-        });
-        ctx.drawImage(pick[0], 0, 0, W, H);
+        ctx.drawImage(entry.img, 0, 0, W, H);
         return;
       }
     }
@@ -1186,8 +1213,8 @@
     // 主題裝飾
     const isz = W*0.0875;
     if(selectedTheme === 'youngforever') drawDrip(ctx, W-isz, isz*0.96, isz, t.line);
-    else if(selectedTheme === 'forest') drawLeaf(ctx, W-isz, isz*0.96, isz*1.07, t.line);
-    else if(selectedTheme === 'retro'){
+    else if(selectedTheme === 'swim') drawLeaf(ctx, W-isz, isz*0.96, isz*1.07, t.line);
+    else if(selectedTheme === '2.0'){
       const holeR = W*0.011;
       for(let yy = pad; yy < footerY; yy += W*0.055){
         ctx.beginPath(); ctx.arc(pad*0.35, yy, holeR, 0, Math.PI*2); ctx.fillStyle='#F0E6D2'; ctx.globalAlpha=0.15; ctx.fill();
@@ -1206,7 +1233,7 @@
       ctx.clip();
       if(capturedImages[i]){
         coverDraw(ctx, capturedImages[i], c.x, c.y, c.w, c.h);
-        if(selectedTheme === 'retro'){
+        if(selectedTheme === '2.0'){
           ctx.fillStyle = 'rgba(36,26,18,0.18)';
           ctx.fillRect(c.x, c.y, c.w, c.h);
         }
@@ -1242,7 +1269,7 @@
 
     ctx.fillStyle = t.sub;
     ctx.font = "400 " + Math.round(W*0.025) + "px 'Noto Sans TC', sans-serif";
-    const stamp = selectedTheme === 'retro' ? `${dateStr}  ${timeStr}` : `${dateStr}`;
+    const stamp = selectedTheme === '2.0' ? `${dateStr}  ${timeStr}` : `${dateStr}`;
     ctx.fillText(stamp, pad, footerY + footerH*0.68);
 
     if(selectedTheme !== 'layover'){
