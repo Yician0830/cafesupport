@@ -306,6 +306,26 @@
   .cam-status{
     font-size:12.5px; text-align:center; color:var(--coffee-dark); opacity:0.7; margin-bottom:clamp(6px,1.2dvh,14px); min-height:16px;
   }
+  .filter-row{
+    display:flex; gap:6px; justify-content:center; flex-wrap:wrap;
+    margin:0 0 clamp(6px,1.2dvh,14px);
+  }
+  .filter-btn{
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:12px;
+    padding:6px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .filter-btn.active{
+    border-color:var(--mustard);
+    background:var(--cream);
+    color:var(--coffee-dark);
+    font-weight:700;
+  }
   .thumbs-row{
     display:flex; gap:6px; margin-bottom:clamp(6px,1.2dvh,16px);
   }
@@ -383,11 +403,27 @@
   .qr-img{
     width:220px; height:220px;
     margin:0 auto 14px;
-    display:block;
+    display:flex;
+    align-items:center;
+    justify-content:center;
     border-radius:10px;
     background:#fff;
     padding:8px;
     border:1px solid var(--line);
+    box-sizing:border-box;
+    overflow:hidden;
+  }
+  .qr-img img, .qr-img canvas{
+    display:block;
+    max-width:100%;
+    max-height:100%;
+  }
+  .qr-img-error{
+    font-size:12.5px;
+    color:var(--ink);
+    opacity:0.75;
+    line-height:1.6;
+    padding:12px;
   }
   .qr-status{
     font-size:13px;
@@ -400,6 +436,19 @@
   footer.credit{
     text-align:center; margin-top:clamp(8px,1.6dvh,22px); font-size:10.5px; color:var(--coffee-dark); opacity:0.4;
   }
+  .offline-banner{
+    background:#FCEFC7;
+    color:#6B4E00;
+    border:1px solid rgba(107,78,0,0.25);
+    border-radius:10px;
+    padding:10px 14px;
+    font-size:12.5px;
+    line-height:1.5;
+    text-align:center;
+    margin-bottom:clamp(8px,1.4dvh,14px);
+  }
+  button.ghost:disabled{ opacity:0.4; cursor:not-allowed; }
+  .layout-btn:disabled{ opacity:0.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -408,6 +457,10 @@
     <div class="mark"> FOR US 限定拍貼</div>
     <div class="sub">在這一天留下最美的模樣</div>
   </header>
+
+  <div class="offline-banner hidden" id="offlineBanner">
+    目前沒有網路連線，「手機掃碼上傳」與「手機掃描下載 QR」暫時無法使用，請改用「現場拍攝」＋「下載照片」
+  </div>
 
   <!-- SCREEN 1: SELECT -->
   <div class="card" id="screenSelect">
@@ -496,6 +549,14 @@
       <div class="shot-indicator" id="shotIndicator"></div>
       <div class="countdown-overlay" id="countdownOverlay"></div>
     </div>
+    <div class="filter-row" id="filterRow">
+      <button class="filter-btn active" data-filter="none" type="button">原圖</button>
+      <button class="filter-btn" data-filter="fresh" type="button">清新</button>
+      <button class="filter-btn" data-filter="bw" type="button">黑白</button>
+      <button class="filter-btn" data-filter="retro" type="button">復古</button>
+      <button class="filter-btn" data-filter="pink" type="button">粉嫩</button>
+      <button class="filter-btn" data-filter="cool" type="button">冷色調</button>
+    </div>
     <div class="cam-status" id="camStatus">按下方按鈕開啟鏡頭</div>
     <div class="thumbs-row" id="thumbsRow"></div>
     <button class="primary" id="captureBtn">開啟鏡頭</button>
@@ -504,8 +565,9 @@
     <div class="qr-panel hidden" id="uploadQrPanel">
       <div class="qr-panel-inner">
         <div class="qr-title">請用手機掃描上傳照片</div>
-        <img class="qr-img hidden" id="uploadQrImg" alt="手機上傳連結 QR Code">
+        <div class="qr-img hidden" id="uploadQrImg" role="img" aria-label="手機上傳連結 QR Code"></div>
         <div class="qr-status" id="uploadQrStatus"></div>
+        <button class="primary hidden" id="uploadQrRetryBtn">重試</button>
         <button class="ghost" id="uploadQrCancelBtn">取消</button>
       </div>
     </div>
@@ -537,7 +599,7 @@
     <div class="qr-panel hidden" id="qrPanel">
       <div class="qr-panel-inner">
         <div class="qr-title">用手機掃描存照片</div>
-        <img class="qr-img hidden" id="qrImg" alt="下載連結 QR Code">
+        <div class="qr-img hidden" id="qrImg" role="img" aria-label="下載連結 QR Code"></div>
         <div class="qr-status" id="qrStatus"></div>
         <button class="ghost" id="qrCloseBtn">關閉</button>
       </div>
@@ -559,6 +621,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- 本地產生 QR Code 用的小型函式庫，網址資料完全在瀏覽器端處理，不用把連結送給第三方圖片產生服務 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyCm5OU5CvdqIgsW4d6W2b9EnIqZt5Apz0g",
@@ -587,6 +651,7 @@
   const uploadQrPanel = document.getElementById('uploadQrPanel');
   const uploadQrImg = document.getElementById('uploadQrImg');
   const uploadQrStatus = document.getElementById('uploadQrStatus');
+  const uploadQrRetryBtn = document.getElementById('uploadQrRetryBtn');
   const uploadQrCancelBtn = document.getElementById('uploadQrCancelBtn');
   const retakeBtn = document.getElementById('retakeBtn');
   const downloadBtn = document.getElementById('downloadBtn');
@@ -615,6 +680,27 @@
   const frameGrid = document.getElementById('frameGrid');
   const sourceToggle = document.getElementById('sourceToggle');
   const viewfinderWrap = document.getElementById('viewfinderWrap');
+  const filterRow = document.getElementById('filterRow');
+
+  // 簡單濾鏡：套用在即時預覽 (video) 跟拍下的照片 (canvas ctx.filter) 上
+  const FILTERS = {
+    none:  '',
+    fresh: 'brightness(1.08) contrast(1.05) saturate(1.15)',
+    bw:    'grayscale(1)',
+    retro: 'sepia(0.35) contrast(1.1) brightness(0.95) saturate(1.2)',
+    pink:  'brightness(1.12) contrast(0.95) saturate(1.3) sepia(0.25) hue-rotate(300deg)',
+    cool:  'brightness(1.05) contrast(1.05) saturate(1.3) sepia(0.3) hue-rotate(180deg)'
+  };
+  let selectedFilter = 'none';
+
+  filterRow.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.filter-btn');
+    if(!btn) return;
+    filterRow.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedFilter = btn.dataset.filter;
+    video.style.filter = FILTERS[selectedFilter] || '';
+  });
 
   let selectedTheme = 'youngforever';
   let selectedLayout = 'strip4x6'; // 'strip4x6' | 'a4poster' | 'single'
@@ -645,9 +731,9 @@
       single:    'image/frames/youngforever-single.png'
     },
     swim: {
-      strip4x6:  'image/swim3.png',
-      a4poster:  'image/swim2.png',
-      single:    'image/swim1.png'
+      strip4x6:  'image/frames/forest-strip4x6.png',
+      a4poster:  'image/frames/forest-a4poster.png',
+      single:    'image/frames/forest-single.png'
     },
     '2.0': {
       strip4x6:  'image/IMG_0088.PNG',
@@ -779,6 +865,7 @@
   }
 
   function applySourceUI(){
+    filterRow.classList.remove('hidden'); // 現場拍攝、手機上傳都可以選濾鏡，所以一律顯示
     if(selectedSource === 'upload'){
       stopCamera();
       viewfinderWrap.classList.add('hidden');
@@ -798,6 +885,29 @@
     }
   }
 
+  // ============================================================
+  // 離線提示：手機掃碼上傳、雲端下載 QR 都需要連到 Firebase，沒網路就無法使用。
+  // 偵測到離線時：顯示提示橫幅、停用這兩個入口，並且如果使用者正停在
+  // 「手機掃碼上傳」這個來源選項，自動切回「現場拍攝」，避免卡在打不開的流程。
+  // ============================================================
+  const offlineBanner = document.getElementById('offlineBanner');
+
+  function updateOnlineState(){
+    const online = navigator.onLine;
+    offlineBanner.classList.toggle('hidden', online);
+    const uploadSourceBtn = sourceToggle.querySelector('[data-source="upload"]');
+    if(uploadSourceBtn) uploadSourceBtn.disabled = !online;
+    qrBtn.disabled = !online;
+    if(!online && selectedSource === 'upload'){
+      cancelPhoneUpload();
+      selectedSource = 'camera';
+      sourceToggle.querySelectorAll('.layout-btn').forEach(f=> f.classList.toggle('active', f.dataset.source === 'camera'));
+      applySourceUI();
+    }
+  }
+  window.addEventListener('online', updateOnlineState);
+  window.addEventListener('offline', updateOnlineState);
+
   function stopCamera(){
     if(stream){
       stream.getTracks().forEach(t=>t.stop());
@@ -810,6 +920,7 @@
       camStatus.textContent = '請允許使用相機權限…';
       stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:960}, height:{ideal:720} }, audio:false });
       video.srcObject = stream;
+      video.style.filter = FILTERS[selectedFilter] || '';
       camStatus.textContent = '準備好了就拍照吧';
       captureBtn.textContent = shotsNeeded() === 1 ? '拍照（單張）' : `拍照（連拍 ${shotsNeeded()} 張）`;
     }catch(err){
@@ -832,6 +943,7 @@
   //   { "rules": { ".read": true, ".write": true } }
   let uploadSession = null; // { id, ref }
   let loadingUploadedPhotos = false;
+  let lastUploadAttempt = null; // { urls, needed, sessionId } 記錄最近一次失敗的載入，供「重試」使用
 
   function randomSessionId(){
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -842,11 +954,33 @@
     return `${base}mobile-upload.html?session=${sessionId}&count=${count}`;
   }
 
+  // 本地產生 QR Code：用 qrcode.js 這個小型函式庫直接在瀏覽器端畫出來，
+  // 不用把要編碼的網址送到外部圖片產生服務。container 是一個空 div，
+  // 若函式庫沒載入成功（例如活動現場網路連不到 CDN），就退而顯示文字連結。
+  function renderQrCode(container, url){
+    container.innerHTML = '';
+    if(typeof QRCode === 'undefined'){
+      const fallback = document.createElement('div');
+      fallback.className = 'qr-img-error';
+      fallback.textContent = 'QR Code 產生失敗，請手動輸入以下連結：' + url;
+      container.appendChild(fallback);
+      return;
+    }
+    new QRCode(container, {
+      text: url,
+      width: 200,
+      height: 200,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+
   function cancelPhoneUpload(){
     if(uploadSession && uploadSession.ref){
       uploadSession.ref.off();
     }
     uploadSession = null;
+    lastUploadAttempt = null;
+    uploadQrRetryBtn.classList.add('hidden');
     uploadQrPanel.classList.add('hidden');
     uploadQrImg.classList.add('hidden');
   }
@@ -871,16 +1005,37 @@
     });
   }
 
+  // 把目前選的濾鏡「烤」進手機上傳來的照片，作法跟現場拍照的 snapPhoto() 一致，
+  // 讓兩種照片來源在最後合成時效果一致。filterKey 為 'none' 時直接回傳原圖，不多繞一手。
+  function applyFilterToImage(img, filterKey){
+    return new Promise((resolve, reject)=>{
+      const key = filterKey || 'none';
+      if(key === 'none' || !FILTERS[key]){ resolve(img); return; }
+      const off = document.createElement('canvas');
+      off.width = img.naturalWidth || img.width;
+      off.height = img.naturalHeight || img.height;
+      const ctx = off.getContext('2d');
+      ctx.filter = FILTERS[key];
+      ctx.drawImage(img, 0, 0, off.width, off.height);
+      ctx.filter = 'none';
+      const out = new Image();
+      out.onload = ()=> resolve(out);
+      out.onerror = ()=> reject(new Error('濾鏡套用失敗'));
+      out.src = off.toDataURL('image/png');
+    });
+  }
+
   async function handleUploadedPhotos(urls, needed, sessionId){
     if(loadingUploadedPhotos) return;
     if(urls.length < needed) return;
     if(!uploadSession || uploadSession.id !== sessionId) return; // 場次已切換，忽略舊資料
     loadingUploadedPhotos = true;
+    uploadQrRetryBtn.classList.add('hidden');
     try{
       if(retakeSlotIndex !== null){
         // 單張重拍模式：只取代這一格，其他已拍好的照片不受影響
         const idx = retakeSlotIndex;
-        const img = await loadImageFromUrl(urls[0]);
+        const img = await applyFilterToImage(await loadImageFromUrl(urls[0]), selectedFilter);
         capturedImages[idx] = img;
         photoAdjust[idx] = { zoom:1, panX:0.5, panY:0.5 };
         retakeDone = true;
@@ -890,13 +1045,14 @@
         capturedImages = [];
         thumbsRow.innerHTML = '';
         for(const url of urls.slice(0, needed)){
-          const img = await loadImageFromUrl(url);
+          const img = await applyFilterToImage(await loadImageFromUrl(url), selectedFilter);
           capturedImages.push(img);
           addThumb(img.src);
           updateShotDots();
         }
       }
       uploadQrStatus.textContent = '上傳完成！正在產生拍貼…';
+      lastUploadAttempt = null;
       const finishedSessionId = sessionId;
       if(uploadSession && uploadSession.ref) uploadSession.ref.off();
       uploadSession = null;
@@ -906,11 +1062,21 @@
         finishCapture();
       }, 500);
     }catch(err){
-      uploadQrStatus.textContent = '讀取照片失敗，請粉絲重新上傳：' + err.message;
+      uploadQrStatus.textContent = '讀取照片失敗：' + err.message + '（可以按「重試」，或請粉絲重新上傳）';
+      lastUploadAttempt = { urls, needed, sessionId };
+      uploadQrRetryBtn.classList.remove('hidden');
     }finally{
       loadingUploadedPhotos = false;
     }
   }
+
+  uploadQrRetryBtn.addEventListener('click', ()=>{
+    if(!lastUploadAttempt) return;
+    const { urls, needed, sessionId } = lastUploadAttempt;
+    uploadQrRetryBtn.classList.add('hidden');
+    uploadQrStatus.textContent = '重試中…';
+    handleUploadedPhotos(urls, needed, sessionId);
+  });
 
   function startPhoneUploadFlow(){
     if(!window.forusDB || !window.forusStorage){
@@ -923,8 +1089,10 @@
 
     uploadQrPanel.classList.remove('hidden');
     uploadQrImg.classList.remove('hidden');
-    uploadQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
+    renderQrCode(uploadQrImg, url);
     uploadQrStatus.textContent = `請用手機掃描 QR Code 上傳照片（0 / ${needed}）`;
+    lastUploadAttempt = null;
+    uploadQrRetryBtn.classList.add('hidden');
 
     const sessionRef = window.forusDB.ref('sessions/' + sessionId + '/photos');
     uploadSession = { id: sessionId, ref: sessionRef };
@@ -998,7 +1166,9 @@
       const ctx = off.getContext('2d');
       ctx.translate(off.width,0);
       ctx.scale(-1,1);
+      ctx.filter = FILTERS[selectedFilter] || 'none'; // 把選好的濾鏡直接烤進拍下的照片
       ctx.drawImage(video, 0, 0, off.width, off.height);
+      ctx.filter = 'none';
       const img = new Image();
       img.onload = ()=>{
         if(retakeSlotIndex !== null){
@@ -1200,7 +1370,7 @@
       const url = await storageRef.getDownloadURL();
       currentPhotoRef = storageRef;
       scheduleAutoDelete(storageRef, AUTO_DELETE_MS);
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
+      renderQrCode(qrImg, url);
       qrImg.classList.remove('hidden');
       qrStatus.textContent = '掃描後，長按照片即可存到手機相簿';
     }catch(err){
@@ -1652,6 +1822,7 @@
   // ensure canvas has something drawn even before capture (placeholder preview)
   applyViewfinderAspect();
   composeResult();
+  updateOnlineState(); // 一進頁面就先檢查一次網路狀態
 })();
 </script>
 </body>
