@@ -787,6 +787,7 @@
     screenCapture.classList.remove('hidden');
     appEl.classList.add('stage-capture');
     qrPanel.classList.add('hidden');
+    deleteCurrentPhotoNow();
     resetCapture();
   });
 
@@ -813,6 +814,37 @@
   //       }
   //     }
   //   }
+  //
+  // ---- 上傳後自動刪除 ----
+  // 目的：掃碼下載完就不要一直留在雲端。做法是：
+  //   1. 使用者按「關閉」時，延遲一小段時間（讓手機那邊有機會把圖片存下來/載入完成）再刪除。
+  //   2. 萬一忘記按關閉（例如直接走掉），設定一個保險用的計時器，過一段時間也會自動刪除。
+  //   3. 按「確定重新拍」時，代表這張已經不需要了，直接刪除。
+  // 注意：這是瀏覽器端的計時器，前提是這個網頁分頁要一直開著；如果分頁被關掉，
+  // 計時器就不會執行。想要更保險（分頁關掉也會清掉），可以另外到 Google Cloud Console
+  // → Cloud Storage → 選到 Firebase 用的 bucket → Lifecycle，設定一條規則，
+  // 例如「物件建立超過 1 天就自動刪除」，當作最後一道防線。
+  let currentPhotoRef = null;
+  let autoDeleteTimer = null;
+  const AUTO_DELETE_MS = 10 * 60 * 1000; // 保險用：10 分鐘後自動刪除
+  const CLOSE_DELETE_DELAY_MS = 30 * 1000; // 按「關閉」後，多等 30 秒再刪除
+
+  function scheduleAutoDelete(ref, delayMs){
+    if(autoDeleteTimer) clearTimeout(autoDeleteTimer);
+    autoDeleteTimer = setTimeout(()=>{
+      ref.delete().catch(()=>{});
+      if(currentPhotoRef === ref) currentPhotoRef = null;
+      autoDeleteTimer = null;
+    }, delayMs);
+  }
+
+  function deleteCurrentPhotoNow(){
+    if(autoDeleteTimer){ clearTimeout(autoDeleteTimer); autoDeleteTimer = null; }
+    if(currentPhotoRef){
+      currentPhotoRef.delete().catch(()=>{});
+      currentPhotoRef = null;
+    }
+  }
 
   qrBtn.addEventListener('click', async ()=>{
     qrPanel.classList.remove('hidden');
@@ -827,6 +859,8 @@
       const storageRef = window.forusStorage.ref().child(filename);
       await storageRef.put(blob, { contentType: 'image/png' });
       const url = await storageRef.getDownloadURL();
+      currentPhotoRef = storageRef;
+      scheduleAutoDelete(storageRef, AUTO_DELETE_MS);
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
       qrImg.classList.remove('hidden');
       qrStatus.textContent = '掃描後，長按照片即可存到手機相簿';
@@ -837,6 +871,9 @@
 
   qrCloseBtn.addEventListener('click', ()=>{
     qrPanel.classList.add('hidden');
+    if(currentPhotoRef){
+      scheduleAutoDelete(currentPhotoRef, CLOSE_DELETE_DELAY_MS);
+    }
   });
 
   // ---- Compositing ----
