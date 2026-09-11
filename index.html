@@ -113,6 +113,25 @@
   }
   input.name-input:focus{outline:2px solid var(--mustard); outline-offset:1px;}
 
+  .checkbox-label{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-size:12.5px;
+    color:var(--ink);
+    opacity:0.85;
+    margin:-4px 0 clamp(10px,1.6dvh,20px);
+    cursor:pointer;
+    user-select:none;
+  }
+  .checkbox-label input[type="checkbox"]{
+    width:15px;
+    height:15px;
+    accent-color:var(--mustard);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+
   .frames{
     display:grid;
     grid-template-columns:repeat(3,1fr);
@@ -306,7 +325,36 @@
     max-height:40dvh;
     border-radius:10px;
     box-shadow:0 6px 24px rgba(58,42,30,0.18);
+    touch-action:none;
+    cursor:grab;
   }
+  #resultCanvas:active{ cursor:grabbing; }
+  .adjust-hint{
+    text-align:center;
+    font-size:12px;
+    color:var(--ink);
+    opacity:0.6;
+    margin:-4px 0 10px;
+  }
+  .retake-slots{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    justify-content:center;
+    margin-bottom:clamp(8px,1.4dvh,14px);
+  }
+  .retake-slot-btn{
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:11.5px;
+    padding:6px 12px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .retake-slot-btn:active{ transform:scale(0.96); }
+  .retake-slot-btn:disabled{ opacity:0.35; cursor:default; }
   .hidden{display:none !important;}
 
   .qr-panel{
@@ -369,6 +417,10 @@
 
     <label class="field-label" for="shopNameInput">打上你的祝福</label>
     <input class="name-input" id="shopNameInput" maxlength="14" value="young forever " placeholder="例如：young forever">
+    <label class="checkbox-label">
+      <input type="checkbox" id="showTextCheckbox" checked>
+      在相框上顯示這段文字／日期
+    </label>
 
     <div class="frames" id="frameGrid">
       <div class="frame-choice active" data-theme="youngforever">
@@ -430,7 +482,7 @@
   <!-- SCREEN 2: CAPTURE -->
   <div class="card hidden" id="screenCapture">
     <div class="step-label">STEP 2</div>
-    <h1 class="title">準備好了嗎？</h1>
+    <h1 class="title" id="captureTitle">準備好了嗎？</h1>
     <div class="viewfinder-wrap" id="viewfinderWrap">
       <video id="video" autoplay playsinline muted></video>
       <div class="frame-guide" id="frameGuide">
@@ -467,9 +519,20 @@
     <div class="result-canvas-wrap">
       <canvas id="resultCanvas" width="1200" height="1800"></canvas>
     </div>
+    <p class="adjust-hint">拖曳照片可調整位置・拖到別格可交換・滾輪或雙指可縮放・點兩下重設</p>
+    <div class="retake-slots hidden" id="retakeSlots"></div>
     <button class="primary" id="downloadBtn">下載照片</button>
     <button class="ghost" id="qrBtn">產生手機掃描 QR Code</button>
     <button class="ghost" id="retakeBtn">重新拍一組</button>
+
+    <div class="qr-panel hidden" id="retakeOnePanel">
+      <div class="qr-panel-inner">
+        <div class="qr-title" id="retakeOneTitle">要重拍這張嗎？</div>
+        <div class="qr-status">重拍後這張照片的位置調整會重設，其他張不受影響。</div>
+        <button class="primary" id="retakeOneConfirmBtn">確定重拍</button>
+        <button class="ghost" id="retakeOneCancelBtn">再想一下</button>
+      </div>
+    </div>
 
     <div class="qr-panel hidden" id="qrPanel">
       <div class="qr-panel-inner">
@@ -519,6 +582,7 @@
   const appEl = document.querySelector('.app');
   const startBtn = document.getElementById('startBtn');
   const captureBtn = document.getElementById('captureBtn');
+  const captureTitle = document.getElementById('captureTitle');
   const backToSelectBtn = document.getElementById('backToSelectBtn');
   const uploadQrPanel = document.getElementById('uploadQrPanel');
   const uploadQrImg = document.getElementById('uploadQrImg');
@@ -534,6 +598,11 @@
   const confirmPanel = document.getElementById('confirmPanel');
   const confirmRetakeBtn = document.getElementById('confirmRetakeBtn');
   const cancelRetakeBtn = document.getElementById('cancelRetakeBtn');
+  const retakeSlotsEl = document.getElementById('retakeSlots');
+  const retakeOnePanel = document.getElementById('retakeOnePanel');
+  const retakeOneTitle = document.getElementById('retakeOneTitle');
+  const retakeOneConfirmBtn = document.getElementById('retakeOneConfirmBtn');
+  const retakeOneCancelBtn = document.getElementById('retakeOneCancelBtn');
   const video = document.getElementById('video');
   const flash = document.getElementById('flash');
   const camStatus = document.getElementById('camStatus');
@@ -542,6 +611,7 @@
   const thumbsRow = document.getElementById('thumbsRow');
   const resultCanvas = document.getElementById('resultCanvas');
   const shopNameInput = document.getElementById('shopNameInput');
+  const showTextCheckbox = document.getElementById('showTextCheckbox');
   const frameGrid = document.getElementById('frameGrid');
   const sourceToggle = document.getElementById('sourceToggle');
   const viewfinderWrap = document.getElementById('viewfinderWrap');
@@ -552,6 +622,12 @@
   let stream = null;
   window.addEventListener('beforeunload', stopCamera);
   let capturedImages = []; // Image objects
+  let photoAdjust = []; // 每張照片的位置/縮放調整 {zoom, panX, panY}
+  let lastCells = []; // composeResult() 最近一次算出的每格座標，給拖曳互動用
+  let retakeSlotIndex = null; // 非 null 時代表「只重拍/重傳第幾張」，null 代表整組拍攝流程
+  let retakeDone = false; // 單張重拍模式下，這一張是否已經拍/傳完成
+  let pendingRetakeIndex = null; // 等待使用者在確認視窗按下「確定重拍」的格子編號
+  let hoverSwapIndex = null; // 拖曳照片時，目前懸停在哪一格上準備交換
   const layoutToggle = document.getElementById('layoutToggle');
 
   // ============================================================
@@ -564,9 +640,9 @@
   // ============================================================
   const FRAME_IMAGE_PATHS = {
     youngforever: {
-      strip4x6:  'image/YF4格.png',
-      a4poster:  'image/YF直立.png',
-      single:    'image/YF單格.png'
+      strip4x6:  'image/frames/youngforever-strip4x6.png',
+      a4poster:  'image/frames/youngforever-a4poster.png',
+      single:    'image/frames/youngforever-single.png'
     },
     swim: {
       strip4x6:  'image/frames/forest-strip4x6.png',
@@ -608,7 +684,10 @@
     });
   });
 
-  function shotsNeeded(){ return selectedLayout === 'single' ? 1 : 4; }
+  function shotsNeeded(){
+    if(retakeSlotIndex !== null) return 1; // 單張重拍模式：永遠只需要 1 張
+    return selectedLayout === 'single' ? 1 : 4;
+  }
 
   // 對應 composeResult() 中各尺寸的單格照片寬高比，讓取景框跟著拍攝尺寸變化
   function getCellAspect(layout){
@@ -666,6 +745,19 @@
   });
 
   backToSelectBtn.addEventListener('click', ()=>{
+    if(retakeSlotIndex !== null){
+      // 單張重拍模式：「返回」是取消這次重拍，回到結果畫面，不動到其他張照片
+      cancelPhoneUpload();
+      retakeSlotIndex = null;
+      retakeDone = false;
+      captureTitle.textContent = '準備好了嗎？';
+      backToSelectBtn.textContent = '返回選框';
+      screenCapture.classList.add('hidden');
+      screenResult.classList.remove('hidden');
+      appEl.classList.remove('stage-capture');
+      composeResult();
+      return;
+    }
     resetCapture();
     screenCapture.classList.add('hidden');
     screenSelect.classList.remove('hidden');
@@ -674,6 +766,11 @@
 
   function resetCapture(){
     capturedImages = [];
+    photoAdjust = [];
+    retakeSlotIndex = null;
+    retakeDone = false;
+    captureTitle.textContent = '準備好了嗎？';
+    backToSelectBtn.textContent = '返回選框';
     thumbsRow.innerHTML = '';
     updateShotDots();
     captureBtn.disabled = false;
@@ -780,13 +877,24 @@
     if(!uploadSession || uploadSession.id !== sessionId) return; // 場次已切換，忽略舊資料
     loadingUploadedPhotos = true;
     try{
-      capturedImages = [];
-      thumbsRow.innerHTML = '';
-      for(const url of urls.slice(0, needed)){
-        const img = await loadImageFromUrl(url);
-        capturedImages.push(img);
+      if(retakeSlotIndex !== null){
+        // 單張重拍模式：只取代這一格，其他已拍好的照片不受影響
+        const idx = retakeSlotIndex;
+        const img = await loadImageFromUrl(urls[0]);
+        capturedImages[idx] = img;
+        photoAdjust[idx] = { zoom:1, panX:0.5, panY:0.5 };
+        retakeDone = true;
         addThumb(img.src);
         updateShotDots();
+      } else {
+        capturedImages = [];
+        thumbsRow.innerHTML = '';
+        for(const url of urls.slice(0, needed)){
+          const img = await loadImageFromUrl(url);
+          capturedImages.push(img);
+          addThumb(img.src);
+          updateShotDots();
+        }
       }
       uploadQrStatus.textContent = '上傳完成！正在產生拍貼…';
       const finishedSessionId = sessionId;
@@ -857,7 +965,11 @@
       }
     }
     const dots = shotIndicator.querySelectorAll('.shot-dot');
-    dots.forEach((d,i)=> d.classList.toggle('done', i < capturedImages.length));
+    if(retakeSlotIndex !== null){
+      dots.forEach(d=> d.classList.toggle('done', retakeDone));
+    } else {
+      dots.forEach((d,i)=> d.classList.toggle('done', i < capturedImages.length));
+    }
   }
 
   function addThumb(src){
@@ -889,8 +1001,15 @@
       ctx.drawImage(video, 0, 0, off.width, off.height);
       const img = new Image();
       img.onload = ()=>{
-        capturedImages.push(img);
-        addThumb(img.src);
+        if(retakeSlotIndex !== null){
+          capturedImages[retakeSlotIndex] = img;
+          photoAdjust[retakeSlotIndex] = { zoom:1, panX:0.5, panY:0.5 };
+          retakeDone = true;
+          addThumb(img.src);
+        } else {
+          capturedImages.push(img);
+          addThumb(img.src);
+        }
         updateShotDots();
         setTimeout(()=>flash.classList.remove('flash'), 350);
         resolve();
@@ -901,7 +1020,15 @@
 
   async function runCaptureSequence(){
     captureBtn.disabled = true;
-    resetCapture();
+    if(retakeSlotIndex === null){
+      resetCapture();
+    } else {
+      // 單張重拍模式：只清掉這次重拍要顯示的縮圖與進度點，不動其他已拍好的照片
+      thumbsRow.innerHTML = '';
+      retakeDone = false;
+      cancelPhoneUpload();
+      updateShotDots();
+    }
     stream && (captureBtn.disabled = true);
     const total = shotsNeeded();
     camStatus.textContent = '準備拍第 1 張';
@@ -922,6 +1049,11 @@
     screenCapture.classList.add('hidden');
     screenResult.classList.remove('hidden');
     appEl.classList.remove('stage-capture');
+    retakeSlotIndex = null;
+    retakeDone = false;
+    captureTitle.textContent = '準備好了嗎？';
+    backToSelectBtn.textContent = '返回選框';
+    renderRetakeSlots();
   }
 
   retakeBtn.addEventListener('click', ()=>{
@@ -940,6 +1072,62 @@
     qrPanel.classList.add('hidden');
     deleteCurrentPhotoNow();
     resetCapture();
+  });
+
+  // ============================================================
+  // 單張重拍／重傳：讓使用者只換掉其中一格照片，不用整組重來。
+  // 為了防止手滑誤觸，一定要先跳出確認視窗按「確定重拍」才會真的進到拍攝畫面。
+  // ============================================================
+  function renderRetakeSlots(){
+    const total = shotsNeeded(); // 此時 retakeSlotIndex 必為 null，所以會回傳正常的張數
+    retakeSlotsEl.innerHTML = '';
+    if(total <= 1){
+      // 單格版面已經有「重新拍一組」可以用，不需要再多一顆重複的按鈕
+      retakeSlotsEl.classList.add('hidden');
+      return;
+    }
+    retakeSlotsEl.classList.remove('hidden');
+    for(let i=0;i<total;i++){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'retake-slot-btn';
+      btn.textContent = `重拍第 ${i+1} 張`;
+      btn.disabled = !capturedImages[i];
+      btn.addEventListener('click', ()=> askRetakeSlot(i));
+      retakeSlotsEl.appendChild(btn);
+    }
+  }
+
+  function askRetakeSlot(i){
+    pendingRetakeIndex = i;
+    retakeOneTitle.textContent = `要重拍第 ${i+1} 張嗎？`;
+    retakeOnePanel.classList.remove('hidden');
+  }
+
+  retakeOneCancelBtn.addEventListener('click', ()=>{
+    pendingRetakeIndex = null;
+    retakeOnePanel.classList.add('hidden');
+  });
+
+  retakeOneConfirmBtn.addEventListener('click', ()=>{
+    retakeOnePanel.classList.add('hidden');
+    const idx = pendingRetakeIndex;
+    pendingRetakeIndex = null;
+    if(idx === null || idx === undefined) return;
+
+    retakeSlotIndex = idx;
+    retakeDone = false;
+    thumbsRow.innerHTML = '';
+    captureTitle.textContent = `重拍第 ${idx+1} 張`;
+    backToSelectBtn.textContent = '取消，返回結果';
+
+    screenResult.classList.add('hidden');
+    screenCapture.classList.remove('hidden');
+    appEl.classList.add('stage-capture');
+    applyViewfinderAspect();
+    applySourceUI();
+    updateShotDots();
+    captureBtn.disabled = false;
   });
 
   downloadBtn.addEventListener('click', ()=>{
@@ -1028,17 +1216,35 @@
   });
 
   // ---- Compositing ----
-  function coverDraw(ctx, img, x, y, w, h){
+  // 算出「鋪滿整格」(cover) 所需要的最小裁切尺寸（zoom=1 時的裁切窗大小）
+  function getCoverCropSize(img, w, h){
     const ir = img.width / img.height;
     const r = w / h;
-    let sx, sy, sw, sh;
-    if(ir > r){
-      sh = img.height; sw = sh * r;
-      sx = (img.width - sw) / 2; sy = 0;
-    } else {
-      sw = img.width; sh = sw / r;
-      sx = 0; sy = (img.height - sh) / 2;
-    }
+    let sw, sh;
+    if(ir > r){ sh = img.height; sw = sh * r; }
+    else { sw = img.width; sh = sw / r; }
+    return { sw, sh };
+  }
+
+  // 依照 adjust（zoom / panX / panY）算出實際要從原圖擷取的區域
+  function getCropRect(img, w, h, adjust){
+    const base = getCoverCropSize(img, w, h);
+    const zoom = Math.max(1, (adjust && adjust.zoom) || 1);
+    let sw = Math.min(img.width, base.sw / zoom);
+    let sh = Math.min(img.height, base.sh / zoom);
+    const panX = (adjust && adjust.panX != null) ? adjust.panX : 0.5;
+    const panY = (adjust && adjust.panY != null) ? adjust.panY : 0.5;
+    const maxSx = Math.max(0, img.width - sw);
+    const maxSy = Math.max(0, img.height - sh);
+    let sx = maxSx * panX;
+    let sy = maxSy * panY;
+    sx = Math.max(0, Math.min(maxSx, sx));
+    sy = Math.max(0, Math.min(maxSy, sy));
+    return { sx, sy, sw, sh };
+  }
+
+  function coverDraw(ctx, img, x, y, w, h, adjust){
+    const { sx, sy, sw, sh } = getCropRect(img, w, h, adjust);
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   }
 
@@ -1121,6 +1327,10 @@
   function composeResult(){
     const ctx = resultCanvas.getContext('2d');
 
+    // 讓 photoAdjust 的長度跟 capturedImages 對齊，缺的補預設值（置中、無縮放）
+    while(photoAdjust.length < capturedImages.length) photoAdjust.push({zoom:1, panX:0.5, panY:0.5});
+    if(photoAdjust.length > capturedImages.length) photoAdjust.length = capturedImages.length;
+
     const shopName = (shopNameInput.value || '生咖 Café').trim();
     const displayName = selectedTheme === 'layover' ? 'LAYOVER' : shopName;
     const dateStr = new Date().toLocaleDateString('zh-TW', {year:'numeric', month:'2-digit', day:'2-digit'});
@@ -1178,6 +1388,33 @@
 
     resultCanvas.width = W;
     resultCanvas.height = H;
+    lastCells = cells; // 給拖曳/縮放互動使用
+
+    // 依「顯示文字」勾選框，只把輸入的祝福語畫在最上層（相框圖之上）
+    // 主題名稱與日期一律不顯示
+    function drawFooterText(){
+      if(!showTextCheckbox.checked) return;
+      ctx.fillStyle = t.text;
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
+      ctx.font = "700 " + Math.round(W*0.047) + "px 'Noto Serif TC', serif";
+      ctx.fillText(displayName, pad, footerY + footerH*0.55);
+    }
+
+    // 拖曳照片到別格上方準備交換時，在目標格畫一圈醒目外框提示
+    function drawSwapHighlight(){
+      if(hoverSwapIndex === null || hoverSwapIndex === dragCellIndex) return;
+      const c = cells[hoverSwapIndex];
+      if(!c) return;
+      ctx.save();
+      ctx.lineWidth = Math.max(6, Math.round(W*0.008));
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.strokeRect(c.x, c.y, c.w, c.h);
+      ctx.lineWidth = Math.max(3, Math.round(W*0.004));
+      ctx.strokeStyle = 'rgba(46,125,70,0.9)';
+      ctx.strokeRect(c.x + ctx.lineWidth, c.y + ctx.lineWidth, c.w - ctx.lineWidth*2, c.h - ctx.lineWidth*2);
+      ctx.restore();
+    }
 
     // 六個主題共用：若該主題＋版面的相框圖檔已載入完成，
     // 就直接把「透明窗格」相框圖疊在照片上方（外框、裝飾、LOGO 一次到位）。
@@ -1194,7 +1431,7 @@
             ctx.beginPath();
             ctx.rect(c.x, c.y, c.w, c.h);
             ctx.clip();
-            coverDraw(ctx, capturedImages[i], c.x, c.y, c.w, c.h);
+            coverDraw(ctx, capturedImages[i], c.x, c.y, c.w, c.h, photoAdjust[i]);
             ctx.restore();
           } else {
             ctx.fillStyle = '#ffffff';
@@ -1202,6 +1439,8 @@
           }
         });
         ctx.drawImage(entry.img, 0, 0, W, H);
+        drawFooterText();
+        drawSwapHighlight();
         return;
       }
     }
@@ -1232,7 +1471,7 @@
       roundRectPath(ctx, c.x, c.y, c.w, c.h, cellRadius);
       ctx.clip();
       if(capturedImages[i]){
-        coverDraw(ctx, capturedImages[i], c.x, c.y, c.w, c.h);
+        coverDraw(ctx, capturedImages[i], c.x, c.y, c.w, c.h, photoAdjust[i]);
         if(selectedTheme === '2.0'){
           ctx.fillStyle = 'rgba(36,26,18,0.18)';
           ctx.fillRect(c.x, c.y, c.w, c.h);
@@ -1262,22 +1501,153 @@
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = t.text;
-    ctx.textBaseline = 'alphabetic';
-    ctx.font = "700 " + Math.round(W*0.047) + "px 'Noto Serif TC', serif";
-    ctx.fillText(displayName, pad, footerY + footerH*0.42);
-
-    ctx.fillStyle = t.sub;
-    ctx.font = "400 " + Math.round(W*0.025) + "px 'Noto Sans TC', sans-serif";
-    const stamp = selectedTheme === '2.0' ? `${dateStr}  ${timeStr}` : `${dateStr}`;
-    ctx.fillText(stamp, pad, footerY + footerH*0.68);
-
-    if(selectedTheme !== 'layover'){
-      ctx.textAlign = 'right';
-      ctx.fillText(themeLabel, W - pad, footerY + footerH*0.68);
-      ctx.textAlign = 'left';
-    }
+    drawFooterText();
+    drawSwapHighlight();
   }
+
+  // ============================================================
+  // 照片位置調整：在合成結果的 canvas 上，讓使用者可以直接
+  // 拖曳單張照片來移動位置、滾輪／雙指縮放、點兩下重設。
+  // ============================================================
+  const activePointers = new Map(); // pointerId -> {x,y}（canvas 內部像素座標）
+  let dragCellIndex = null;
+  let dragStart = null;   // {img, c, sw, sh, sx, sy, startX, startY}
+  let pinchStartDist = null;
+  let pinchStartZoom = null;
+
+  function canvasPointFromEvent(e){
+    const rect = resultCanvas.getBoundingClientRect();
+    const scaleX = resultCanvas.width / rect.width;
+    const scaleY = resultCanvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  function findCellIndexAt(x, y){
+    for(let i=0;i<lastCells.length;i++){
+      const c = lastCells[i];
+      if(x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) return i;
+    }
+    return -1;
+  }
+
+  function endPointer(pointerId){
+    activePointers.delete(pointerId);
+    if(activePointers.size < 2){ pinchStartDist = null; pinchStartZoom = null; }
+    if(activePointers.size === 0){ dragCellIndex = null; dragStart = null; hoverSwapIndex = null; }
+  }
+
+  resultCanvas.addEventListener('pointerdown', (e)=>{
+    if(!lastCells.length) return;
+    const pt = canvasPointFromEvent(e);
+    activePointers.set(e.pointerId, pt);
+    try{ resultCanvas.setPointerCapture(e.pointerId); }catch(err){}
+
+    if(activePointers.size === 1){
+      const idx = findCellIndexAt(pt.x, pt.y);
+      if(idx === -1 || !capturedImages[idx]){ dragCellIndex = null; dragStart = null; return; }
+      dragCellIndex = idx;
+      const img = capturedImages[idx];
+      const c = lastCells[idx];
+      const adj = photoAdjust[idx];
+      const { sx, sy, sw, sh } = getCropRect(img, c.w, c.h, adj);
+      dragStart = { img, c, sx, sy, sw, sh, startX: pt.x, startY: pt.y };
+    } else if(activePointers.size === 2 && dragCellIndex !== null){
+      const pts = Array.from(activePointers.values());
+      pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      pinchStartZoom = photoAdjust[dragCellIndex].zoom || 1;
+    }
+  });
+
+  resultCanvas.addEventListener('pointermove', (e)=>{
+    if(!activePointers.has(e.pointerId)) return;
+    const pt = canvasPointFromEvent(e);
+    activePointers.set(e.pointerId, pt);
+    if(dragCellIndex === null) return;
+
+    if(activePointers.size === 2 && pinchStartDist){
+      const pts = Array.from(activePointers.values());
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if(dist > 0){
+        let newZoom = pinchStartZoom * (dist / pinchStartDist);
+        newZoom = Math.max(1, Math.min(4, newZoom));
+        photoAdjust[dragCellIndex].zoom = newZoom;
+        composeResult();
+      }
+      return;
+    }
+
+    if(activePointers.size === 1 && dragStart){
+      // 如果拖到「別的、有照片的格子」上方，先暫停平移，準備交換兩格照片；
+      // 放開時若還停在別格上，就真的交換；如果又拖回原本的格子，就繼續原本的平移。
+      const hoverIdx = findCellIndexAt(pt.x, pt.y);
+      if(hoverIdx !== -1 && hoverIdx !== dragCellIndex && capturedImages[hoverIdx]){
+        if(hoverSwapIndex !== hoverIdx){
+          hoverSwapIndex = hoverIdx;
+          composeResult();
+        }
+        return;
+      }
+      if(hoverSwapIndex !== null){
+        hoverSwapIndex = null;
+        composeResult();
+      }
+
+      const dx = pt.x - dragStart.startX;
+      const dy = pt.y - dragStart.startY;
+      // 讓照片「黏著」手指/滑鼠移動：畫面移動 dx 像素，對應原圖要反向位移 dx*(sw/cellW)
+      const srcDx = dx * (dragStart.sw / dragStart.c.w);
+      const srcDy = dy * (dragStart.sh / dragStart.c.h);
+      const maxSx = Math.max(0, dragStart.img.width - dragStart.sw);
+      const maxSy = Math.max(0, dragStart.img.height - dragStart.sh);
+      let newSx = dragStart.sx - srcDx;
+      let newSy = dragStart.sy - srcDy;
+      newSx = Math.max(0, Math.min(maxSx, newSx));
+      newSy = Math.max(0, Math.min(maxSy, newSy));
+      const adj = photoAdjust[dragCellIndex];
+      adj.panX = maxSx > 0 ? newSx / maxSx : 0.5;
+      adj.panY = maxSy > 0 ? newSy / maxSy : 0.5;
+      composeResult();
+    }
+  });
+
+  ['pointerup','pointercancel'].forEach(evt=>{
+    resultCanvas.addEventListener(evt, (e)=>{
+      if(evt === 'pointerup' && activePointers.size === 1 && dragCellIndex !== null &&
+         hoverSwapIndex !== null && hoverSwapIndex !== dragCellIndex &&
+         capturedImages[dragCellIndex] && capturedImages[hoverSwapIndex]){
+        // 放開時還停在別格上方：交換這兩格的照片（連同各自的位置/縮放調整一起換過去）
+        const a = dragCellIndex, b = hoverSwapIndex;
+        [capturedImages[a], capturedImages[b]] = [capturedImages[b], capturedImages[a]];
+        [photoAdjust[a], photoAdjust[b]] = [photoAdjust[b], photoAdjust[a]];
+      }
+      hoverSwapIndex = null;
+      endPointer(e.pointerId);
+      composeResult();
+    });
+  });
+
+  // 滑鼠滾輪縮放（桌機／觸控板）
+  resultCanvas.addEventListener('wheel', (e)=>{
+    if(!lastCells.length) return;
+    const pt = canvasPointFromEvent(e);
+    const idx = findCellIndexAt(pt.x, pt.y);
+    if(idx === -1 || !capturedImages[idx]) return;
+    e.preventDefault();
+    const adj = photoAdjust[idx];
+    let newZoom = (adj.zoom || 1) * (e.deltaY < 0 ? 1.08 : 0.93);
+    adj.zoom = Math.max(1, Math.min(4, newZoom));
+    composeResult();
+  }, { passive:false });
+
+  // 點兩下／雙擊：重設該張照片的位置與縮放
+  resultCanvas.addEventListener('dblclick', (e)=>{
+    if(!lastCells.length) return;
+    const pt = canvasPointFromEvent(e);
+    const idx = findCellIndexAt(pt.x, pt.y);
+    if(idx === -1 || !photoAdjust[idx]) return;
+    photoAdjust[idx] = { zoom:1, panX:0.5, panY:0.5 };
+    composeResult();
+  });
 
   // ensure canvas has something drawn even before capture (placeholder preview)
   applyViewfinderAspect();
