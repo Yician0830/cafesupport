@@ -447,6 +447,22 @@
   <footer class="credit">FOR US · BTS & ARMY</footer>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCm5OU5CvdqIgsW4d6W2b9EnIqZt5Apz0g",
+    authDomain: "forus-photobooth.firebaseapp.com",
+    databaseURL: "https://forus-photobooth-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "forus-photobooth",
+    storageBucket: "forus-photobooth.firebasestorage.app",
+    messagingSenderId: "689429328187",
+    appId: "1:689429328187:web:e146f57103842aa997871e",
+    measurementId: "G-8D3SJGW1FF"
+  };
+  firebase.initializeApp(firebaseConfig);
+  window.forusStorage = firebase.storage();
+</script>
 <script>
 (function(){
   const screenSelect = document.getElementById('screenSelect');
@@ -783,39 +799,34 @@
 
   // ---- 手機掃描 QR Code 下載 ----
   // 現場只有一台平板/電腦在拍，粉絲要把照片存到「自己的手機」，
-  // 沒有後端伺服器的情況下，唯一可行的作法是：先把合成好的照片上傳到一個
-  // 圖床，拿到一個網址，再把網址做成 QR Code 給粉絲掃描開啟、下載。
+  // 沒有後端伺服器的情況下，唯一可行的作法是：先把合成好的照片上傳到雲端，
+  // 拿到一個網址，再把網址做成 QR Code 給粉絲掃描開啟、下載。
   //
-  // 這裡用 Cloudinary 的「unsigned upload」（免後端、免密鑰，安全地在瀏覽器端上傳）。
-  // 使用前請先完成以下設定（皆為免費方案即可）：
-  //   1. 到 https://cloudinary.com 註冊帳號，取得 Cloud name（在 Dashboard 首頁）。
-  //   2. Settings → Upload → Upload presets → Add upload preset，
-  //      Signing Mode 選「Unsigned」，存檔後複製 preset 名稱。
-  //   3. 把下面兩個常數換成你自己的值。
-  // 注意：這種方式上傳的照片網址是「知道連結就能看」，並非私密相簿，
-  // 若在意公開性，可在 Cloudinary 設定自動刪除或改用有權限控管的圖床。
-  const CLOUDINARY_CLOUD_NAME = 'nmldtpzv';
-  const CLOUDINARY_UPLOAD_PRESET = 'lzy5vnvj';
+  // 這裡改用 Firebase Storage 上傳（設定已寫在 <head> 前面的 firebaseConfig）。
+  // 重要：Firebase Storage 預設規則會擋掉未登入的上傳，請到
+  // Firebase Console → Storage → Rules，暫時開放讀寫（僅適用於活動現場短期使用）：
+  //   rules_version = '2';
+  //   service firebase.storage {
+  //     match /b/{bucket}/o {
+  //       match /{allPaths=**} {
+  //         allow read, write: if true;
+  //       }
+  //     }
+  //   }
 
   qrBtn.addEventListener('click', async ()=>{
     qrPanel.classList.remove('hidden');
     qrImg.classList.add('hidden');
     qrStatus.textContent = '上傳中，請稍候…';
     try{
-      if(CLOUDINARY_CLOUD_NAME === 'YOUR_CLOUD_NAME' || CLOUDINARY_UPLOAD_PRESET === 'YOUR_UPLOAD_PRESET'){
-        throw new Error('尚未設定圖床，請先完成程式碼裡的 Cloudinary 設定');
+      if(!window.forusStorage){
+        throw new Error('Firebase 尚未初始化，請確認 SDK 有正確載入');
       }
       const blob = await new Promise(resolve => resultCanvas.toBlob(resolve, 'image/png'));
-      const form = new FormData();
-      form.append('file', blob);
-      form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-        method: 'POST',
-        body: form
-      });
-      if(!resp.ok) throw new Error('上傳失敗，請檢查網路連線');
-      const data = await resp.json();
-      const url = data.secure_url;
+      const filename = `photos/${Date.now()}_${Math.random().toString(36).slice(2,8)}.png`;
+      const storageRef = window.forusStorage.ref().child(filename);
+      await storageRef.put(blob, { contentType: 'image/png' });
+      const url = await storageRef.getDownloadURL();
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
       qrImg.classList.remove('hidden');
       qrStatus.textContent = '掃描後，長按照片即可存到手機相簿';
